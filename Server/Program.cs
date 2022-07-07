@@ -9,6 +9,9 @@ using Timer = System.Timers.Timer;
 
 Server.Server server = new Server.Server();
 HashSet<int> shineBag = new HashSet<int>();
+bool proxChat = false; //off by default.
+Dictionary<Client, (Vector3 pos, ushort act, ushort subact)> clientPositionCorrelate = new Dictionary<Client, (Vector3, ushort, ushort)>();
+Dictionary<Client, Dictionary<Client, float>> playerVolumes = new Dictionary<Client, Dictionary<Client, float>>(); //volume [0f : 0% - 1f : 100%]
 CancellationTokenSource cts = new CancellationTokenSource();
 Task listenTask = server.Listen(cts.Token);
 Logger consoleLogger = new Logger("Console");
@@ -145,10 +148,90 @@ server.PacketHandler = (c, p) => {
             });
             return false;
         }
+        case PlayerPacket playerPacket: {
+                clientPositionCorrelate[c] = (playerPacket.Position, playerPacket.Act, playerPacket.SubAct);
+                if (!playerVolumes.ContainsKey(c))
+                {
+                    playerVolumes.Add(c, new Dictionary<Client, float>());
+                    //O(playercount)
+                    foreach (Client cc in server.Clients)
+                    {
+                        if (cc != c)
+                        {
+                            //my perspective of other players
+                            playerVolumes[c][cc] = 0f; //muted by default. (only applies when voiceprox is on).
+                            //other players for me
+                            playerVolumes[cc][c] = 0f; //"" ""
+                        }
+                    }
+                }
+                const float beginHearingThreshold = 50f; //how far away other people are when you just barely start to hear them.
+                const float fullHearingThreshold = 10f; //players within this distance are max volume.
+                float ClampedInvLerp(float a, float b, float v)
+                {
+                    return v < a ? 0 : (v > b ? 1 : (v - a) / (b - a)); //see "linear interpolation"
+                }
+                //O(playerCount^2)
+                foreach (var c1 in clientPositionCorrelate)
+                {
+                    foreach (var c2 in clientPositionCorrelate)
+                    {
+                        if (c1.Value.act == c2.Value.act && c1.Value.subact == c2.Value.subact)
+                        {
+                            float dist = Vector3.Distance(c1.Value.pos, c2.Value.pos);
+                            if (dist < beginHearingThreshold)
+                            {
+                                playerVolumes[c1.Key][c2.Key] = 0f;
+                                playerVolumes[c2.Key][c1.Key] = 0f;
+                            }
+                            else if (dist >= beginHearingThreshold && dist < fullHearingThreshold)
+                            {
+                                playerVolumes[c1.Key][c2.Key] = ClampedInvLerp(fullHearingThreshold, beginHearingThreshold, dist);
+                                playerVolumes[c2.Key][c1.Key] = ClampedInvLerp(fullHearingThreshold, beginHearingThreshold, dist);
+                            }
+                            else
+                            {
+                                playerVolumes[c1.Key][c2.Key] = 1f;
+                                playerVolumes[c2.Key][c1.Key] = 1f;
+                            }
+                        }
+                        else
+                        {
+                            playerVolumes[c1.Key][c2.Key] = 0f;
+                            playerVolumes[c2.Key][c1.Key] = 0f;
+                        }
+                    }
+                }
+            break; //not sure what returning false or true does, but it seems like returning false disposes
+                   //some memory, maybe returning false means a change in the connection status of a player?
+        }
+
     }
 
     return true;
 };
+
+CommandHandler.RegisterCommand("voiceprox", args => {
+    if (args.Length == 0)
+    {
+        return "Need to specify on or off. (Usage: voiceprox <on|off>)";
+    }
+    else if (args.Length > 1)
+    {
+        return "Too many arguments. (Usage: voiceprox <on|off>)";
+    }
+    switch (args[0])
+    {
+        case "on":
+            proxChat = true;
+            return "Turned voice proximity on.";
+        case "off":
+            proxChat = false;
+            return "Turned voice proximity off.";
+        default:
+            return "Usage: voiceprox <on|off>";
+    }
+});
 
 CommandHandler.RegisterCommand("rejoin", args => {
     bool moreThanOne = false;
