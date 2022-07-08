@@ -19,45 +19,60 @@ Logger consoleLogger = new Logger("Console");
 DiscordBot bot = new DiscordBot();
 await bot.Run();
 
-server.ClientJoined += (c, _) => {
+server.ClientJoined += (c, _) =>
+{
     if (Settings.Instance.BanList.Enabled
         && (Settings.Instance.BanList.Players.Contains(c.Id)
             || Settings.Instance.BanList.IpAddresses.Contains(
-                ((IPEndPoint) c.Socket!.RemoteEndPoint!).Address.ToString())))
+                ((IPEndPoint)c.Socket!.RemoteEndPoint!).Address.ToString())))
         throw new Exception($"Banned player attempted join: {c.Name}");
     c.Metadata["shineSync"] = new ConcurrentBag<int>();
     c.Metadata["loadedSave"] = false;
-    c.Metadata["scenario"] = (byte?) 0;
+    c.Metadata["scenario"] = (byte?)0;
     c.Metadata["2d"] = false;
     c.Metadata["speedrun"] = false;
-    foreach (Client client in server.Clients.Where(client => client.Metadata.ContainsKey("lastGamePacket")).ToArray()) {
-        try {
-            c.Send((GamePacket) client.Metadata["lastGamePacket"]!, client).Wait();
-        } catch {
+    foreach (Client client in server.Clients.Where(client => client.Metadata.ContainsKey("lastGamePacket")).ToArray())
+    {
+        try
+        {
+            c.Send((GamePacket)client.Metadata["lastGamePacket"]!, client).Wait();
+        }
+        catch
+        {
             // lol who gives a fuck
         }
     }
 };
 
-async Task ClientSyncShineBag(Client client) {
-    try {
-        if ((bool?) client.Metadata["speedrun"] ?? false) return;
-        ConcurrentBag<int> clientBag = (ConcurrentBag<int>) (client.Metadata["shineSync"] ??= new ConcurrentBag<int>());
-        foreach (int shine in shineBag.Except(clientBag).ToArray()) {
+async Task ClientSyncShineBag(Client client)
+{
+    try
+    {
+        if ((bool?)client.Metadata["speedrun"] ?? false) return;
+        ConcurrentBag<int> clientBag = (ConcurrentBag<int>)(client.Metadata["shineSync"] ??= new ConcurrentBag<int>());
+        foreach (int shine in shineBag.Except(clientBag).ToArray())
+        {
             clientBag.Add(shine);
-            await client.Send(new ShinePacket {
+            await client.Send(new ShinePacket
+            {
                 ShineId = shine
             });
         }
-    } catch {
+    }
+    catch
+    {
         // errors that can happen when sending will crash the server :)
     }
 }
 
-async void SyncShineBag() {
-    try {
+async void SyncShineBag()
+{
+    try
+    {
         await Parallel.ForEachAsync(server.Clients.ToArray(), async (client, _) => await ClientSyncShineBag(client));
-    } catch {
+    }
+    catch
+    {
         // errors that can happen shines change will crash the server :)
     }
 }
@@ -70,150 +85,206 @@ timer.Start();
 
 float MarioSize(bool is2d) => is2d ? 180 : 160;
 
-server.PacketHandler = (c, p) => {
-    switch (p) {
-        case GamePacket gamePacket: {
-            c.Logger.Info($"Got game packet {gamePacket.Stage}->{gamePacket.ScenarioNum}");
-            c.Metadata["scenario"] = gamePacket.ScenarioNum;
-            c.Metadata["2d"] = gamePacket.Is2d;
-            c.Metadata["lastGamePacket"] = gamePacket;
-            switch (gamePacket.Stage) {
-                case "CapWorldHomeStage" when gamePacket.ScenarioNum == 0:
-                    c.Metadata["speedrun"] = true;
-                    ((ConcurrentBag<int>) (c.Metadata["shineSync"] ??= new ConcurrentBag<int>())).Clear();
-                    shineBag.Clear();
-                    c.Logger.Info("Entered Cap on new save, preventing moon sync until Cascade");
-                    break;
-                case "WaterfallWorldHomeStage":
-                    bool wasSpeedrun = (bool) c.Metadata["speedrun"]!;
-                    c.Metadata["speedrun"] = false;
-                    if (wasSpeedrun)
-                        Task.Run(async () => {
-                            c.Logger.Info("Entered Cascade with moon sync disabled, enabling moon sync");
-                            await Task.Delay(15000);
-                            await ClientSyncShineBag(c);
-                        });
-                    break;
-            }
+server.PacketHandler = (c, p) =>
+{
+    switch (p)
+    {
+        case GamePacket gamePacket:
+            {
+                c.Logger.Info($"Got game packet {gamePacket.Stage}->{gamePacket.ScenarioNum}");
+                c.Metadata["scenario"] = gamePacket.ScenarioNum;
+                c.Metadata["2d"] = gamePacket.Is2d;
+                c.Metadata["lastGamePacket"] = gamePacket;
+                switch (gamePacket.Stage)
+                {
+                    case "CapWorldHomeStage" when gamePacket.ScenarioNum == 0:
+                        c.Metadata["speedrun"] = true;
+                        ((ConcurrentBag<int>)(c.Metadata["shineSync"] ??= new ConcurrentBag<int>())).Clear();
+                        shineBag.Clear();
+                        c.Logger.Info("Entered Cap on new save, preventing moon sync until Cascade");
+                        break;
+                    case "WaterfallWorldHomeStage":
+                        bool wasSpeedrun = (bool)c.Metadata["speedrun"]!;
+                        c.Metadata["speedrun"] = false;
+                        if (wasSpeedrun)
+                            Task.Run(async () =>
+                            {
+                                c.Logger.Info("Entered Cascade with moon sync disabled, enabling moon sync");
+                                await Task.Delay(15000);
+                                await ClientSyncShineBag(c);
+                            });
+                        break;
+                }
 
-            if (Settings.Instance.Scenario.MergeEnabled) {
-                server.BroadcastReplace(gamePacket, c, (from, to, gp) => {
-                    gp.ScenarioNum = (byte?) to.Metadata["scenario"] ?? 200;
-                    to.Send(gp, from);
-                });
-                return false;
-            }
+                if (Settings.Instance.Scenario.MergeEnabled)
+                {
+                    server.BroadcastReplace(gamePacket, c, (from, to, gp) =>
+                    {
+                        gp.ScenarioNum = (byte?)to.Metadata["scenario"] ?? 200;
+                        to.Send(gp, from);
+                    });
+                    return false;
+                }
 
-            break;
-        }
-        case TagPacket tagPacket: {
-            if ((tagPacket.UpdateType & TagPacket.TagUpdate.State) != 0) c.Metadata["seeking"] = tagPacket.IsIt;
-            if ((tagPacket.UpdateType & TagPacket.TagUpdate.Time) != 0)
-                c.Metadata["time"] = new Time(tagPacket.Minutes, tagPacket.Seconds, DateTime.Now);
-            break;
-        }
+                break;
+            }
+        case TagPacket tagPacket:
+            {
+                if ((tagPacket.UpdateType & TagPacket.TagUpdate.State) != 0) c.Metadata["seeking"] = tagPacket.IsIt;
+                if ((tagPacket.UpdateType & TagPacket.TagUpdate.Time) != 0)
+                    c.Metadata["time"] = new Time(tagPacket.Minutes, tagPacket.Seconds, DateTime.Now);
+                break;
+            }
         case CostumePacket:
             ClientSyncShineBag(c);
             c.Metadata["loadedSave"] = true;
             break;
-        case ShinePacket shinePacket: {
-            if (c.Metadata["loadedSave"] is false) break;
-            ConcurrentBag<int> playerBag = (ConcurrentBag<int>) c.Metadata["shineSync"];
-            shineBag.Add(shinePacket.ShineId);
-            if (playerBag.Contains(shinePacket.ShineId)) break;
-            c.Logger.Info($"Got moon {shinePacket.ShineId}");
-            playerBag.Add(shinePacket.ShineId);
-            SyncShineBag();
-            break;
-        }
+        case ShinePacket shinePacket:
+            {
+                if (c.Metadata["loadedSave"] is false) break;
+                ConcurrentBag<int> playerBag = (ConcurrentBag<int>)c.Metadata["shineSync"];
+                shineBag.Add(shinePacket.ShineId);
+                if (playerBag.Contains(shinePacket.ShineId)) break;
+                c.Logger.Info($"Got moon {shinePacket.ShineId}");
+                playerBag.Add(shinePacket.ShineId);
+                SyncShineBag();
+                break;
+            }
         case PlayerPacket playerPacket when Settings.Instance.Flip.Enabled
                                             && Settings.Instance.Flip.Pov is FlipOptions.Both or FlipOptions.Others
-                                            && Settings.Instance.Flip.Players.Contains(c.Id): {
-            playerPacket.Position += Vector3.UnitY * MarioSize((bool) c.Metadata["2d"]);
-            playerPacket.Rotation *= Quaternion.CreateFromRotationMatrix(Matrix4x4.CreateRotationX(MathF.PI))
-                                     * Quaternion.CreateFromRotationMatrix(Matrix4x4.CreateRotationY(MathF.PI));
-            server.Broadcast(playerPacket, c);
-            return false;
-        }
+                                            && Settings.Instance.Flip.Players.Contains(c.Id):
+            {
+                playerPacket.Position += Vector3.UnitY * MarioSize((bool)c.Metadata["2d"]);
+                playerPacket.Rotation *= Quaternion.CreateFromRotationMatrix(Matrix4x4.CreateRotationX(MathF.PI))
+                                         * Quaternion.CreateFromRotationMatrix(Matrix4x4.CreateRotationY(MathF.PI));
+                server.Broadcast(playerPacket, c);
+                return false;
+            }
         case PlayerPacket playerPacket when Settings.Instance.Flip.Enabled
                                             && Settings.Instance.Flip.Pov is FlipOptions.Both or FlipOptions.Self
-                                            && !Settings.Instance.Flip.Players.Contains(c.Id): {
-            server.BroadcastReplace(playerPacket, c, (from, to, sp) => {
-                if (Settings.Instance.Flip.Players.Contains(to.Id)) {
-                    sp.Position += Vector3.UnitY * MarioSize((bool) c.Metadata["2d"]);
-                    sp.Rotation *= Quaternion.CreateFromRotationMatrix(Matrix4x4.CreateRotationX(MathF.PI))
-                                   * Quaternion.CreateFromRotationMatrix(Matrix4x4.CreateRotationY(MathF.PI));
-                }
+                                            && !Settings.Instance.Flip.Players.Contains(c.Id):
+            {
+                server.BroadcastReplace(playerPacket, c, (from, to, sp) =>
+                {
+                    if (Settings.Instance.Flip.Players.Contains(to.Id))
+                    {
+                        sp.Position += Vector3.UnitY * MarioSize((bool)c.Metadata["2d"]);
+                        sp.Rotation *= Quaternion.CreateFromRotationMatrix(Matrix4x4.CreateRotationX(MathF.PI))
+                                       * Quaternion.CreateFromRotationMatrix(Matrix4x4.CreateRotationY(MathF.PI));
+                    }
 
-                to.Send(sp, from);
-            });
-            return false;
-        }
-        case PlayerPacket playerPacket: {
-                clientPositionCorrelate[c] = (playerPacket.Position, playerPacket.Act, playerPacket.SubAct);
-                if (!playerVolumes.ContainsKey(c))
-                {
-                    playerVolumes.Add(c, new Dictionary<Client, float>());
-                    //O(playercount)
-                    foreach (Client cc in server.Clients)
-                    {
-                        if (cc != c)
-                        {
-                            //my perspective of other players
-                            playerVolumes[c][cc] = 0f; //muted by default. (only applies when voiceprox is on).
-                            //other players for me
-                            playerVolumes[cc][c] = 0f; //"" ""
-                        }
-                    }
-                }
-                const float beginHearingThreshold = 50f; //how far away other people are when you just barely start to hear them.
-                const float fullHearingThreshold = 10f; //players within this distance are max volume.
-                float ClampedInvLerp(float a, float b, float v)
-                {
-                    return v < a ? 0 : (v > b ? 1 : (v - a) / (b - a)); //see "linear interpolation"
-                }
-                //O(playerCount)
-                var c1 = clientPositionCorrelate[c];
-                foreach (var c2 in clientPositionCorrelate)
-                {
-                    if (c == c2.Key)
-                        continue;
-                    if (c1.act == c2.Value.act && c1.subact == c2.Value.subact)
-                    {
-                        float dist = Vector3.Distance(c1.pos, c2.Value.pos);
-                        playerVolumes[c][c2.Key] = ClampedInvLerp(fullHearingThreshold, beginHearingThreshold, dist);
-                        playerVolumes[c2.Key][c] = ClampedInvLerp(fullHearingThreshold, beginHearingThreshold, dist);
-                    }
-                    else
-                    {
-                        playerVolumes[c][c2.Key] = 0f;
-                        playerVolumes[c2.Key][c] = 0f;
-                    }
-                    if (igToDiscord.ContainsKey(c.Name) && igToDiscord.ContainsKey(c2.Key.Name))
-                    {
-                        //check if volume is different, if not, then don't send.
-                        SendDiscordVolumeCommand(igToDiscord[c.Name], igToDiscord[c2.Key.Name], proxChat ? playerVolumes[c][c2.Key] : null);
-                        SendDiscordVolumeCommand(igToDiscord[c2.Key.Name], igToDiscord[c.Name], proxChat ? playerVolumes[c2.Key][c] : null);
-                    }
-                }
-            break; //not sure what returning false or true does, but it seems like returning false disposes
-                   //some memory, maybe returning false means a change in the connection status of a player?
-        }
+                    to.Send(sp, from);
+                });
+                return false;
+            }
+        case PlayerPacket playerPacket:
+            {
+                UpdateProxChatDataForPlayer(c, (playerPacket.Position, playerPacket.Act, playerPacket.SubAct));
+                break; //not sure what returning false or true does, but it seems like returning false disposes
+                       //some memory, maybe returning false means a change in the connection status of a player?
+            }
 
     }
 
     return true;
 };
 
-bool SendDiscordVolumeCommand(string perspectiveUser, string userToChangeLocalVolumeOf, float? newLocalVolume)
+void UpdateProxChatDataForPlayer(Client c, (Vector3 pos, ushort act, ushort subact) playerInfo)
 {
-    //the two users are guaranteed to exist?
-    //if newLocalVolume is null set it to the user's default.
-    //multiply "newLocalVolume" against the userToChangeLocalVolumeOf's set gain.
+    clientPositionCorrelate[c] = playerInfo;
+    bool forceSendVolData = false;
 
-    //set the local volume of the user from the perspective of the perspectiveUser.
-    throw new NotImplementedException();
+    if (!playerVolumes.ContainsKey(c)) //this client hasn't been entered yet
+    {
+        playerVolumes.Add(c, new Dictionary<Client, float>()); //this client's personal dictionary for other client local volumes.
+        //O(playercount)
+        foreach (Client cc in server.Clients)
+        {
+            if (cc != c)
+            {
+                //my perspective of other players
+                playerVolumes[c][cc] = 0f; //muted by default. (only applies when voiceprox is on).
+                //other players for me
+                playerVolumes[cc][c] = 0f; //"" ""
+            }
+        }
+        forceSendVolData = true; //because this user is new we need to mute everyone for them and mute them for everyone.
+    }
+
+    //TODO: load from config and/or make editable with a command.
+    const float beginHearingThreshold = 80f; //how far away other people are when you just barely start to hear them.
+    const float fullHearingThreshold = 20f; //players within this distance are max volume.
+    const float soundEpsilon = 0.05f; //if change in volume is lower than this amount, then don't bother changing it.
+
+    float ClampedInvLerp(float a, float b, float v)
+    {
+        return v < a ? 0 : (v > b ? 1 : (v - a) / (b - a)); //see "linear interpolation"
+    }
+
+    //O(playerCount)
+    var c1 = clientPositionCorrelate[c];
+    foreach (var c2 in clientPositionCorrelate)
+    {
+        if (c == c2.Key)
+            continue;
+        bool significantVolChange = false;
+        float dist = Vector3.Distance(c1.pos, c2.Value.pos);
+        float vol = ClampedInvLerp(fullHearingThreshold, beginHearingThreshold, dist);
+        if (Math.Abs(vol - playerVolumes[c][c2.Key]) > soundEpsilon)
+        {
+            if (c1.act == c2.Value.act && c1.subact == c2.Value.subact)
+            {
+                playerVolumes[c][c2.Key] = vol;
+                playerVolumes[c2.Key][c] = vol;
+            }
+            else
+            {
+                playerVolumes[c][c2.Key] = 0f;
+                playerVolumes[c2.Key][c] = 0f;
+            }
+            significantVolChange = true;
+        }
+        if ((igToDiscord.ContainsKey(c.Name) && igToDiscord.ContainsKey(c2.Key.Name)) && (forceSendVolData || significantVolChange))
+        {
+            //check if volume is different, if not, then don't send.
+            SendDiscordVolumeCommand(igToDiscord[c.Name], igToDiscord[c2.Key.Name], proxChat ? playerVolumes[c][c2.Key] : null);
+            SendDiscordVolumeCommand(igToDiscord[c2.Key.Name], igToDiscord[c.Name], proxChat ? playerVolumes[c2.Key][c] : null);
+        }
+    }
 }
+
+void SendDiscordVolumeCommand(string perspectiveUser, string userToChangeLocalVolumeOf, float? newLocalVolume)
+{
+    //if newLocalVolume is null set it to the user's default.
+    //set the local volume of the user from the perspective of the perspectiveUser.
+    bot.ChangeVolume(perspectiveUser, userToChangeLocalVolumeOf, newLocalVolume);
+}
+
+CommandHandler.RegisterCommand("botlobby", args =>
+{
+    //Settings.Instance.Server.MaxPlayers
+    //Settings.Instance.Discord. //????
+    if (args.Length != 1)
+    {
+        return "Usage: botlobby <make|close>";
+    }
+    else
+    {
+        switch(args[0])
+        {
+            case "make":
+                //create the lobby
+                throw new NotImplementedException();
+                break;
+            case "close":
+                //close the lobby
+                throw new NotImplementedException();
+                break;
+            default:
+                return "Usage: botlobby <make|close>";
+        }
+    }
+});
 
 CommandHandler.RegisterCommand("vcpcorrlist", args =>
 {
@@ -247,7 +318,7 @@ CommandHandler.RegisterCommand("vcpcorrdel", args =>
     }
 });
 
-CommandHandler.RegisterCommand("vcpcorr", args => 
+CommandHandler.RegisterCommand("vcpcorr", args =>
 {
     //2 args, correlate discord username to ingame username
     if (args.Length != 2 || !args[0].Contains("#")) //need the hashtag and number.
@@ -268,7 +339,8 @@ CommandHandler.RegisterCommand("vcpcorr", args =>
     }
 });
 
-CommandHandler.RegisterCommand("voiceprox", args => {
+CommandHandler.RegisterCommand("voiceprox", args =>
+{
     if (args.Length == 0)
     {
         return "Need to specify on or off. (Usage: voiceprox <on|off>)";
@@ -291,14 +363,16 @@ CommandHandler.RegisterCommand("voiceprox", args => {
     }
 });
 
-CommandHandler.RegisterCommand("rejoin", args => {
+CommandHandler.RegisterCommand("rejoin", args =>
+{
     bool moreThanOne = false;
     StringBuilder builder = new StringBuilder();
     Client[] clients = (args.Length == 1 && args[0] == "*"
         ? server.Clients.Where(c =>
             c.Connected && args.Any(x => c.Name.StartsWith(x) || (Guid.TryParse(x, out Guid result) && result == c.Id)))
         : server.Clients.Where(c => c.Connected)).ToArray();
-    foreach (Client user in clients) {
+    foreach (Client user in clients)
+    {
         if (moreThanOne) builder.Append(", ");
         builder.Append(user.Name);
         user.Dispose();
@@ -308,19 +382,23 @@ CommandHandler.RegisterCommand("rejoin", args => {
     return clients.Length > 0 ? $"Caused {builder} to rejoin" : "Usage: rejoin <usernames...>";
 });
 
-CommandHandler.RegisterCommand("crash", args => {
+CommandHandler.RegisterCommand("crash", args =>
+{
     bool moreThanOne = false;
     StringBuilder builder = new StringBuilder();
     Client[] clients = (args.Length == 1 && args[0] == "*"
         ? server.Clients.Where(c =>
             c.Connected && args.Any(x => c.Name.StartsWith(x) || (Guid.TryParse(x, out Guid result) && result == c.Id)))
         : server.Clients.Where(c => c.Connected)).ToArray();
-    foreach (Client user in clients) {
+    foreach (Client user in clients)
+    {
         if (moreThanOne) builder.Append(", ");
         moreThanOne = true;
         builder.Append(user.Name);
-        Task.Run(async () => {
-            await user.Send(new ChangeStagePacket {
+        Task.Run(async () =>
+        {
+            await user.Send(new ChangeStagePacket
+            {
                 Id = "$among$us/SubArea",
                 Stage = "$agogusStage",
                 Scenario = 21,
@@ -333,7 +411,8 @@ CommandHandler.RegisterCommand("crash", args => {
     return clients.Length > 0 ? $"Crashed {builder}" : "Usage: crash <usernames...>";
 });
 
-CommandHandler.RegisterCommand("ban", args => {
+CommandHandler.RegisterCommand("ban", args =>
+{
     bool moreThanOne = false;
     StringBuilder builder = new StringBuilder();
 
@@ -341,25 +420,29 @@ CommandHandler.RegisterCommand("ban", args => {
         ? server.Clients.Where(c =>
             c.Connected && args.Any(x => c.Name.StartsWith(x) || (Guid.TryParse(x, out Guid result) && result == c.Id)))
         : server.Clients.Where(c => c.Connected)).ToArray();
-    foreach (Client user in clients) {
+    foreach (Client user in clients)
+    {
         if (moreThanOne) builder.Append(", ");
         moreThanOne = true;
         builder.Append(user.Name);
-        Task.Run(async () => {
-            await user.Send(new ChangeStagePacket {
+        Task.Run(async () =>
+        {
+            await user.Send(new ChangeStagePacket
+            {
                 Id = "$agogus/banned4lyfe",
                 Stage = "$ejected",
                 Scenario = 69,
                 SubScenarioType = 21 // invalid id
             });
-            IPEndPoint? endpoint = (IPEndPoint?) user.Socket?.RemoteEndPoint;
+            IPEndPoint? endpoint = (IPEndPoint?)user.Socket?.RemoteEndPoint;
             Settings.Instance.BanList.Players.Add(user.Id);
             if (endpoint != null) Settings.Instance.BanList.IpAddresses.Add(endpoint.ToString());
             user.Dispose();
         });
     }
 
-    if (clients.Length > 0) {
+    if (clients.Length > 0)
+    {
         Settings.SaveSettings();
         return $"Banned {builder}.";
     }
@@ -367,7 +450,8 @@ CommandHandler.RegisterCommand("ban", args => {
     return "Usage: ban <usernames...>";
 });
 
-CommandHandler.RegisterCommand("send", args => {
+CommandHandler.RegisterCommand("send", args =>
+{
     const string optionUsage = "Usage: send <stage> <id> <scenario[-1..127]> <player/*>";
     if (args.Length < 4)
         return optionUsage;
@@ -375,11 +459,13 @@ CommandHandler.RegisterCommand("send", args => {
     string stage = args[0];
     string id = args[1];
 
-    if (Constants.MapNames.TryGetValue(stage.ToLower(), out string? mapName)) {
+    if (Constants.MapNames.TryGetValue(stage.ToLower(), out string? mapName))
+    {
         stage = mapName;
     }
 
-    if (!stage.Contains("Stage") && !stage.Contains("Zone")) {
+    if (!stage.Contains("Stage") && !stage.Contains("Zone"))
+    {
         return "Invalid Stage Name! ```cap  ->  Cap Kingdom\ncascade  ->  Cascade Kingdom\nsand  ->  Sand Kingdom\nlake  ->  Lake Kingdom\nwooded  ->  Wooded Kingdom\ncloud  ->  Cloud Kingdom\nlost  ->  Lost Kingdom\nmetro  ->  Metro Kingdom\nsea  ->  Sea Kingdom\nsnow  ->  Snow Kingdom\nlunch  ->  Luncheon Kingdom\nruined  ->  Ruined Kingdom\nbowser  ->  Bowser's Kingdom\nmoon  ->  Moon Kingdom\nmush  ->  Mushroom Kingdom\ndark  ->  Dark Side\ndarker  ->  Darker Side```";
     }
 
@@ -391,8 +477,10 @@ CommandHandler.RegisterCommand("send", args => {
                 c.Connected
                 && args[3..].Any(x => c.Name.StartsWith(x) || (Guid.TryParse(x, out Guid result) && result == c.Id)))
             .ToArray();
-    Parallel.ForEachAsync(players, async (c, _) => {
-        await c.Send(new ChangeStagePacket {
+    Parallel.ForEachAsync(players, async (c, _) =>
+    {
+        await c.Send(new ChangeStagePacket
+        {
             Stage = stage,
             Id = id,
             Scenario = scenario,
@@ -402,25 +490,30 @@ CommandHandler.RegisterCommand("send", args => {
     return $"Sent players to {stage}:{scenario}";
 });
 
-CommandHandler.RegisterCommand("sendall", args => {
+CommandHandler.RegisterCommand("sendall", args =>
+{
     const string optionUsage = "Usage: sendall <stage>";
     if (args.Length < 1)
         return optionUsage;
 
     string stage = args[0];
 
-    if (Constants.MapNames.TryGetValue(stage.ToLower(), out string? mapName)) {
+    if (Constants.MapNames.TryGetValue(stage.ToLower(), out string? mapName))
+    {
         stage = mapName;
     }
 
-    if (!stage.Contains("Stage") && !stage.Contains("Zone")) {
+    if (!stage.Contains("Stage") && !stage.Contains("Zone"))
+    {
         return "Invalid Stage Name! ```cap  ->  Cap Kingdom\ncascade  ->  Cascade Kingdom\nsand  ->  Sand Kingdom\nlake  ->  Lake Kingdom\nwooded  ->  Wooded Kingdom\ncloud  ->  Cloud Kingdom\nlost  ->  Lost Kingdom\nmetro  ->  Metro Kingdom\nsea  ->  Sea Kingdom\nsnow  ->  Snow Kingdom\nlunch  ->  Luncheon Kingdom\nruined  ->  Ruined Kingdom\nbowser  ->  Bowser's Kingdom\nmoon  ->  Moon Kingdom\nmush  ->  Mushroom Kingdom\ndark  ->  Dark Side\ndarker  ->  Darker Side```";
     }
 
     Client[] players = server.Clients.Where(c => c.Connected).ToArray();
 
-    Parallel.ForEachAsync(players, async (c, _) => {
-        await c.Send(new ChangeStagePacket {
+    Parallel.ForEachAsync(players, async (c, _) =>
+    {
+        await c.Send(new ChangeStagePacket
+        {
             Stage = stage,
             Id = "",
             Scenario = -1,
@@ -431,104 +524,121 @@ CommandHandler.RegisterCommand("sendall", args => {
     return $"Sent players to {stage}:{-1}";
 });
 
-CommandHandler.RegisterCommand("scenario", args => {
+CommandHandler.RegisterCommand("scenario", args =>
+{
     const string optionUsage = "Valid options: merge [true/false]";
     if (args.Length < 1)
         return optionUsage;
-    switch (args[0]) {
-        case "merge" when args.Length == 2: {
-            if (bool.TryParse(args[1], out bool result)) {
-                Settings.Instance.Scenario.MergeEnabled = result;
-                Settings.SaveSettings();
-                return result ? "Enabled scenario merge" : "Disabled scenario merge";
-            }
+    switch (args[0])
+    {
+        case "merge" when args.Length == 2:
+            {
+                if (bool.TryParse(args[1], out bool result))
+                {
+                    Settings.Instance.Scenario.MergeEnabled = result;
+                    Settings.SaveSettings();
+                    return result ? "Enabled scenario merge" : "Disabled scenario merge";
+                }
 
-            return optionUsage;
-        }
-        case "merge" when args.Length == 1: {
-            return $"Scenario merging is {Settings.Instance.Scenario.MergeEnabled}";
-        }
+                return optionUsage;
+            }
+        case "merge" when args.Length == 1:
+            {
+                return $"Scenario merging is {Settings.Instance.Scenario.MergeEnabled}";
+            }
         default:
             return optionUsage;
     }
 });
 
-CommandHandler.RegisterCommand("tag", args => {
+CommandHandler.RegisterCommand("tag", args =>
+{
     const string optionUsage =
         "Valid options:\n\ttime <user/*> <minutes[0-65535]> <seconds[0-59]>\n\tseeking <user/*> <true/false>\n\tstart <time> <seekers>";
     if (args.Length < 3)
         return optionUsage;
-    switch (args[0]) {
-        case "time" when args.Length == 4: {
-            if (args[1] != "*" && server.Clients.All(x => x.Name != args[1])) return $"Cannot find user {args[1]}";
-            Client? client = server.Clients.FirstOrDefault(x => x.Name == args[1]);
-            if (!ushort.TryParse(args[2], out ushort minutes))
-                return $"Invalid time for minutes {args[2]} (range: 0-65535)";
-            if (!byte.TryParse(args[3], out byte seconds) || seconds >= 60)
-                return $"Invalid time for seconds {args[3]} (range: 0-59)";
-            TagPacket tagPacket = new TagPacket {
-                UpdateType = TagPacket.TagUpdate.Time,
-                Minutes = minutes,
-                Seconds = seconds
-            };
-            if (args[1] == "*")
-                server.Broadcast(tagPacket);
-            else
-                client?.Send(tagPacket);
-            return $"Set time for {(args[1] == "*" ? "everyone" : args[1])} to {minutes}:{seconds}";
-        }
-        case "seeking" when args.Length == 3: {
-            if (args[1] != "*" && server.Clients.All(x => x.Name != args[1])) return $"Cannot find user {args[1]}";
-            Client? client = server.Clients.FirstOrDefault(x => x.Name == args[1]);
-            if (!bool.TryParse(args[2], out bool seeking)) return $"Usage: tag seeking {args[1]} <true/false>";
-            TagPacket tagPacket = new TagPacket {
-                UpdateType = TagPacket.TagUpdate.State,
-                IsIt = seeking
-            };
-            if (args[1] == "*")
-                server.Broadcast(tagPacket);
-            else
-                client?.Send(tagPacket);
-            return $"Set {(args[1] == "*" ? "everyone" : args[1])} to {(seeking ? "seeker" : "hider")}";
-        }
-        case "start" when args.Length > 2: {
-            if (!byte.TryParse(args[1], out byte time)) return $"Invalid countdown seconds {args[1]} (range: 0-255)";
-            string[] seekerNames = args[2..];
-            Client[] seekers = server.Clients.Where(c => seekerNames.Contains(c.Name)).ToArray();
-            if (seekers.Length != seekerNames.Length)
-                return
-                    $"Couldn't find seeker{(seekerNames.Length > 1 ? "s" : "")}: {string.Join(", ", seekerNames.Where(name => server.Clients.All(c => c.Name != name)))}";
-            Task.Run(async () => {
-                int realTime = 1000 * time;
-                await Task.Delay(realTime);
-                await Task.WhenAll(
-                    Parallel.ForEachAsync(seekers, async (seeker, _) =>
-                        await server.Broadcast(new TagPacket {
-                            UpdateType = TagPacket.TagUpdate.State,
-                            IsIt = true
-                        }, seeker)),
-                    Parallel.ForEachAsync(server.Clients.Except(seekers), async (hider, _) =>
-                        await server.Broadcast(new TagPacket {
-                            UpdateType = TagPacket.TagUpdate.State,
-                            IsIt = false
-                        }, hider)
-                    )
-                );
-                consoleLogger.Info($"Started game with seekers {string.Join(", ", seekerNames)}");
-            });
-            return $"Starting game in {time} seconds with seekers {string.Join(", ", seekerNames)}";
-        }
+    switch (args[0])
+    {
+        case "time" when args.Length == 4:
+            {
+                if (args[1] != "*" && server.Clients.All(x => x.Name != args[1])) return $"Cannot find user {args[1]}";
+                Client? client = server.Clients.FirstOrDefault(x => x.Name == args[1]);
+                if (!ushort.TryParse(args[2], out ushort minutes))
+                    return $"Invalid time for minutes {args[2]} (range: 0-65535)";
+                if (!byte.TryParse(args[3], out byte seconds) || seconds >= 60)
+                    return $"Invalid time for seconds {args[3]} (range: 0-59)";
+                TagPacket tagPacket = new TagPacket
+                {
+                    UpdateType = TagPacket.TagUpdate.Time,
+                    Minutes = minutes,
+                    Seconds = seconds
+                };
+                if (args[1] == "*")
+                    server.Broadcast(tagPacket);
+                else
+                    client?.Send(tagPacket);
+                return $"Set time for {(args[1] == "*" ? "everyone" : args[1])} to {minutes}:{seconds}";
+            }
+        case "seeking" when args.Length == 3:
+            {
+                if (args[1] != "*" && server.Clients.All(x => x.Name != args[1])) return $"Cannot find user {args[1]}";
+                Client? client = server.Clients.FirstOrDefault(x => x.Name == args[1]);
+                if (!bool.TryParse(args[2], out bool seeking)) return $"Usage: tag seeking {args[1]} <true/false>";
+                TagPacket tagPacket = new TagPacket
+                {
+                    UpdateType = TagPacket.TagUpdate.State,
+                    IsIt = seeking
+                };
+                if (args[1] == "*")
+                    server.Broadcast(tagPacket);
+                else
+                    client?.Send(tagPacket);
+                return $"Set {(args[1] == "*" ? "everyone" : args[1])} to {(seeking ? "seeker" : "hider")}";
+            }
+        case "start" when args.Length > 2:
+            {
+                if (!byte.TryParse(args[1], out byte time)) return $"Invalid countdown seconds {args[1]} (range: 0-255)";
+                string[] seekerNames = args[2..];
+                Client[] seekers = server.Clients.Where(c => seekerNames.Contains(c.Name)).ToArray();
+                if (seekers.Length != seekerNames.Length)
+                    return
+                        $"Couldn't find seeker{(seekerNames.Length > 1 ? "s" : "")}: {string.Join(", ", seekerNames.Where(name => server.Clients.All(c => c.Name != name)))}";
+                Task.Run(async () =>
+                {
+                    int realTime = 1000 * time;
+                    await Task.Delay(realTime);
+                    await Task.WhenAll(
+                        Parallel.ForEachAsync(seekers, async (seeker, _) =>
+                            await server.Broadcast(new TagPacket
+                            {
+                                UpdateType = TagPacket.TagUpdate.State,
+                                IsIt = true
+                            }, seeker)),
+                        Parallel.ForEachAsync(server.Clients.Except(seekers), async (hider, _) =>
+                            await server.Broadcast(new TagPacket
+                            {
+                                UpdateType = TagPacket.TagUpdate.State,
+                                IsIt = false
+                            }, hider)
+                        )
+                    );
+                    consoleLogger.Info($"Started game with seekers {string.Join(", ", seekerNames)}");
+                });
+                return $"Starting game in {time} seconds with seekers {string.Join(", ", seekerNames)}";
+            }
         default:
             return optionUsage;
     }
 });
 
-CommandHandler.RegisterCommand("maxplayers", args => {
+CommandHandler.RegisterCommand("maxplayers", args =>
+{
     const string optionUsage = "Valid usage: maxplayers <playercount>";
     if (args.Length != 1) return optionUsage;
     if (!ushort.TryParse(args[0], out ushort maxPlayers)) return optionUsage;
     Settings.Instance.Server.MaxPlayers = maxPlayers;
     Settings.SaveSettings();
+    bot.ChangePVCLobbySize(maxPlayers);
     foreach (Client client in server.Clients)
         client.Dispose(); // reconnect all players
     return $"Saved and set max players to {maxPlayers}";
@@ -537,80 +647,95 @@ CommandHandler.RegisterCommand("maxplayers", args => {
 CommandHandler.RegisterCommand("list",
     _ => $"List: {string.Join("\n\t", server.Clients.Where(x => x.Connected).Select(x => $"{x.Name} ({x.Id})"))}");
 
-CommandHandler.RegisterCommand("flip", args => {
+CommandHandler.RegisterCommand("flip", args =>
+{
     const string optionUsage =
         "Valid options: \n\tlist\n\tadd <user id>\n\tremove <user id>\n\tset <true/false>\n\tpov <both/self/others>";
     if (args.Length < 1)
         return optionUsage;
-    switch (args[0]) {
+    switch (args[0])
+    {
         case "list" when args.Length == 1:
             return "User ids: " + string.Join(", ", Settings.Instance.Flip.Players.ToList());
-        case "add" when args.Length == 2: {
-            if (Guid.TryParse(args[1], out Guid result)) {
-                Settings.Instance.Flip.Players.Add(result);
-                Settings.SaveSettings();
-                return $"Added {result} to flipped players";
-            }
+        case "add" when args.Length == 2:
+            {
+                if (Guid.TryParse(args[1], out Guid result))
+                {
+                    Settings.Instance.Flip.Players.Add(result);
+                    Settings.SaveSettings();
+                    return $"Added {result} to flipped players";
+                }
 
-            return $"Invalid user id {args[1]}";
-        }
-        case "remove" when args.Length == 2: {
-            if (Guid.TryParse(args[1], out Guid result)) {
-                string output = Settings.Instance.Flip.Players.Remove(result)
-                    ? $"Removed {result} to flipped players"
-                    : $"User {result} wasn't in the flipped players list";
-                Settings.SaveSettings();
-                return output;
+                return $"Invalid user id {args[1]}";
             }
+        case "remove" when args.Length == 2:
+            {
+                if (Guid.TryParse(args[1], out Guid result))
+                {
+                    string output = Settings.Instance.Flip.Players.Remove(result)
+                        ? $"Removed {result} to flipped players"
+                        : $"User {result} wasn't in the flipped players list";
+                    Settings.SaveSettings();
+                    return output;
+                }
 
-            return $"Invalid user id {args[1]}";
-        }
-        case "set" when args.Length == 2: {
-            if (bool.TryParse(args[1], out bool result)) {
-                Settings.Instance.Flip.Enabled = result;
-                Settings.SaveSettings();
-                return result ? "Enabled player flipping" : "Disabled player flipping";
+                return $"Invalid user id {args[1]}";
             }
+        case "set" when args.Length == 2:
+            {
+                if (bool.TryParse(args[1], out bool result))
+                {
+                    Settings.Instance.Flip.Enabled = result;
+                    Settings.SaveSettings();
+                    return result ? "Enabled player flipping" : "Disabled player flipping";
+                }
 
-            return optionUsage;
-        }
-        case "pov" when args.Length == 2: {
-            if (Enum.TryParse(args[1], true, out FlipOptions result)) {
-                Settings.Instance.Flip.Pov = result;
-                Settings.SaveSettings();
-                return $"Point of view set to {result}";
+                return optionUsage;
             }
+        case "pov" when args.Length == 2:
+            {
+                if (Enum.TryParse(args[1], true, out FlipOptions result))
+                {
+                    Settings.Instance.Flip.Pov = result;
+                    Settings.SaveSettings();
+                    return $"Point of view set to {result}";
+                }
 
-            return optionUsage;
-        }
+                return optionUsage;
+            }
         default:
             return optionUsage;
     }
 });
 
-CommandHandler.RegisterCommand("shine", args => {
+CommandHandler.RegisterCommand("shine", args =>
+{
     const string optionUsage = "Valid options: list, clear, sync, send";
     if (args.Length < 1)
         return optionUsage;
-    switch (args[0]) {
+    switch (args[0])
+    {
         case "list" when args.Length == 1:
             return $"Shines: {string.Join(", ", shineBag)}";
         case "clear" when args.Length == 1:
             shineBag.Clear();
             foreach (ConcurrentBag<int> playerBag in server.Clients.Select(serverClient =>
-                (ConcurrentBag<int>) serverClient.Metadata["shineSync"])) playerBag.Clear();
+                (ConcurrentBag<int>)serverClient.Metadata["shineSync"])) playerBag.Clear();
 
             return "Cleared shine bags";
         case "sync" when args.Length == 1:
             SyncShineBag();
             return "Synced shine bag automatically";
         case "send" when args.Length >= 3:
-            if (int.TryParse(args[1], out int id)) {
+            if (int.TryParse(args[1], out int id))
+            {
                 Client[] players = args[2] == "*"
                     ? server.Clients.Where(c => c.Connected).ToArray()
                     : server.Clients.Where(c => c.Connected && args[3..].Contains(c.Name)).ToArray();
-                Parallel.ForEachAsync(players, async (c, _) => {
-                    await c.Send(new ShinePacket {
+                Parallel.ForEachAsync(players, async (c, _) =>
+                {
+                    await c.Send(new ShinePacket
+                    {
                         ShineId = id
                     });
                 }).Wait();
@@ -623,28 +748,35 @@ CommandHandler.RegisterCommand("shine", args => {
     }
 });
 
-CommandHandler.RegisterCommand("loadsettings", _ => {
+CommandHandler.RegisterCommand("loadsettings", _ =>
+{
     Settings.LoadSettings();
     return "Loaded settings.json";
 });
 
-Console.CancelKeyPress += (_, e) => {
+Console.CancelKeyPress += (_, e) =>
+{
     e.Cancel = true;
     consoleLogger.Info("Received Ctrl+C");
     cts.Cancel();
 };
 
-CommandHandler.RegisterCommandAliases(_ => {
+CommandHandler.RegisterCommandAliases(_ =>
+{
     cts.Cancel();
     return "Shutting down";
 }, "exit", "quit", "q");
 
-Task.Run(() => {
+Task.Run(() =>
+{
     consoleLogger.Info("Run help command for valid commands.");
-    while (true) {
+    while (true)
+    {
         string? text = Console.ReadLine();
-        if (text != null) {
-            foreach (string returnString in CommandHandler.GetResult(text).ReturnStrings) {
+        if (text != null)
+        {
+            foreach (string returnString in CommandHandler.GetResult(text).ReturnStrings)
+            {
                 consoleLogger.Info(returnString);
             }
         }
