@@ -2,14 +2,14 @@
 using DSharpPlus.Entities;
 using Microsoft.Extensions.Logging;
 using Shared;
-using Discord;
+//using Discord;
 
 namespace Server;
 
 public class DiscordBot {
     private Discord.Discord pvcDiscord = new Discord.Discord(Constants.clientId, (long)Discord.CreateFlags.Default);
     private Dictionary<string, long> discUserToId = new Dictionary<string, long>();
-    private Dictionary<long, User> discUserTable = new Dictionary<long, User>();
+    private Dictionary<long, Discord.User> discUserTable = new Dictionary<long, Discord.User>();
     private Discord.Lobby? pvcLobby = null;
     private DiscordClient? DiscordClient;
     private string? Token;
@@ -68,6 +68,11 @@ public class DiscordBot {
         }
     }
 
+    public void PVCDiscordCallbackLoop()
+    {
+        pvcDiscord?.RunCallbacks();
+    }
+
     public void ChangeVolume(string perspectiveUser, string target, float? vol)
     {
         var lobbyManager = pvcDiscord.GetLobbyManager();
@@ -99,7 +104,7 @@ public class DiscordBot {
                 bool issue = false;
                 lobbyManager.DeleteLobby(pvcLobby.Value.Id, (res) =>
                 {
-                    if (res != Result.Ok)
+                    if (res != Discord.Result.Ok)
                     {
                         Logger.Error("Discord runner had an issue when deleting an old pvc lobby.");
                         issue = true;
@@ -123,10 +128,10 @@ public class DiscordBot {
         var userManager = pvcDiscord.GetUserManager();
         var trans = lobbyManager.GetLobbyCreateTransaction();
         trans.SetCapacity(Settings.Instance.Server.MaxPlayers);
-        trans.SetType(LobbyType.Private);
-        lobbyManager.CreateLobby(trans, (Result res, ref Lobby lobby) =>
+        trans.SetType(Discord.LobbyType.Private);
+        lobbyManager.CreateLobby(trans, (Discord.Result res, ref Discord.Lobby lobby) =>
         {
-            if (res != Result.Ok)
+            if (res != Discord.Result.Ok)
             {
                 Logger.Error("Discord runner had an issue when creating a pvc lobby.");
                 return;
@@ -136,7 +141,7 @@ public class DiscordBot {
             lobbyManager.OpenNetworkChannel(lobby.Id, 0, true);
             lobbyManager.OnMemberConnect += (long lobbyId, long userId) =>
             {
-                userManager.GetUser(userId, (Result res, ref User user) =>
+                userManager.GetUser(userId, (Discord.Result res, ref Discord.User user) =>
                 {
                     discUserTable[user.Id] = user;
                     discUserToId[user.Username + "#" + user.Discriminator] = user.Id;

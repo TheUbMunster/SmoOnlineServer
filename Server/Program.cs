@@ -19,6 +19,15 @@ Logger consoleLogger = new Logger("Console");
 DiscordBot bot = new DiscordBot();
 await bot.Run();
 
+Task.Run(async () => 
+{
+    while (true)
+    {
+        await Task.Delay(20);
+        bot.PVCDiscordCallbackLoop();
+    }
+});
+
 server.ClientJoined += (c, _) =>
 {
     if (Settings.Instance.BanList.Enabled
@@ -259,6 +268,8 @@ void SendDiscordVolumeCommand(string perspectiveUser, string userToChangeLocalVo
     //set the local volume of the user from the perspective of the perspectiveUser.
     bot.ChangeVolume(perspectiveUser, userToChangeLocalVolumeOf, newLocalVolume);
 }
+
+CommandHandler.RegisterCommand("help", _ => $"Valid commands: {string.Join(", ", CommandHandler.Handlers.Keys)}");
 
 CommandHandler.RegisterCommand("botlobby", args =>
 {

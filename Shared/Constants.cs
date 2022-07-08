@@ -42,5 +42,5 @@ public static class Constants {
         {"darker", "Special2WorldHomeStage"}
     };
 
-    
+
 }

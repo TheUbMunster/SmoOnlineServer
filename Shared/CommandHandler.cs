@@ -1,14 +1,14 @@
 ﻿using System.Text;
-namespace Server;
+namespace Shared;
 
 public static class CommandHandler {
     public delegate Response Handler(string[] args);
 
     public static Dictionary<string, Handler> Handlers = new Dictionary<string, Handler>();
 
-    static CommandHandler() {
-        RegisterCommand("help", _ => $"Valid commands: {string.Join(", ", Handlers.Keys)}");
-    }
+    //static CommandHandler() {
+    //    RegisterCommand("help", _ => $"Valid commands: {string.Join(", ", Handlers.Keys)}");
+    //}
 
     public static void RegisterCommand(string name, Handler handler) {
         Handlers[name] = handler;
@@ -42,8 +42,7 @@ public static class CommandHandler {
                         {
                             return "Unmatching quotes, make sure that whenever quotes are used, another quote is present to close it";
                         }
-                    }
-                    while (args[i][^1] != '\"');
+                    } while (args[i][^1] != '\"');
                     newArgs.Add(sb.ToString(1, sb.Length - 3)); //remove quotes and extra space at the end.
                 }
                 else
