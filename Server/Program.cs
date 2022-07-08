@@ -12,6 +12,7 @@ HashSet<int> shineBag = new HashSet<int>();
 bool proxChat = false; //off by default.
 Dictionary<Client, (Vector3 pos, ushort act, ushort subact)> clientPositionCorrelate = new Dictionary<Client, (Vector3, ushort, ushort)>();
 Dictionary<Client, Dictionary<Client, float>> playerVolumes = new Dictionary<Client, Dictionary<Client, float>>(); //volume [0f : 0% - 1f : 100%]
+Dictionary<string, string> igToDiscord = new Dictionary<string, string>(); //ingame -> discord
 CancellationTokenSource cts = new CancellationTokenSource();
 Task listenTask = server.Listen(cts.Token);
 Logger consoleLogger = new Logger("Console");
@@ -171,35 +172,28 @@ server.PacketHandler = (c, p) => {
                 {
                     return v < a ? 0 : (v > b ? 1 : (v - a) / (b - a)); //see "linear interpolation"
                 }
-                //O(playerCount^2)
-                foreach (var c1 in clientPositionCorrelate)
+                //O(playerCount)
+                var c1 = clientPositionCorrelate[c];
+                foreach (var c2 in clientPositionCorrelate)
                 {
-                    foreach (var c2 in clientPositionCorrelate)
+                    if (c == c2.Key)
+                        continue;
+                    if (c1.act == c2.Value.act && c1.subact == c2.Value.subact)
                     {
-                        if (c1.Value.act == c2.Value.act && c1.Value.subact == c2.Value.subact)
-                        {
-                            float dist = Vector3.Distance(c1.Value.pos, c2.Value.pos);
-                            if (dist < beginHearingThreshold)
-                            {
-                                playerVolumes[c1.Key][c2.Key] = 0f;
-                                playerVolumes[c2.Key][c1.Key] = 0f;
-                            }
-                            else if (dist >= beginHearingThreshold && dist < fullHearingThreshold)
-                            {
-                                playerVolumes[c1.Key][c2.Key] = ClampedInvLerp(fullHearingThreshold, beginHearingThreshold, dist);
-                                playerVolumes[c2.Key][c1.Key] = ClampedInvLerp(fullHearingThreshold, beginHearingThreshold, dist);
-                            }
-                            else
-                            {
-                                playerVolumes[c1.Key][c2.Key] = 1f;
-                                playerVolumes[c2.Key][c1.Key] = 1f;
-                            }
-                        }
-                        else
-                        {
-                            playerVolumes[c1.Key][c2.Key] = 0f;
-                            playerVolumes[c2.Key][c1.Key] = 0f;
-                        }
+                        float dist = Vector3.Distance(c1.pos, c2.Value.pos);
+                        playerVolumes[c][c2.Key] = ClampedInvLerp(fullHearingThreshold, beginHearingThreshold, dist);
+                        playerVolumes[c2.Key][c] = ClampedInvLerp(fullHearingThreshold, beginHearingThreshold, dist);
+                    }
+                    else
+                    {
+                        playerVolumes[c][c2.Key] = 0f;
+                        playerVolumes[c2.Key][c] = 0f;
+                    }
+                    if (igToDiscord.ContainsKey(c.Name) && igToDiscord.ContainsKey(c2.Key.Name))
+                    {
+                        //check if volume is different, if not, then don't send.
+                        SendDiscordVolumeCommand(igToDiscord[c.Name], igToDiscord[c2.Key.Name], proxChat ? playerVolumes[c][c2.Key] : null);
+                        SendDiscordVolumeCommand(igToDiscord[c2.Key.Name], igToDiscord[c.Name], proxChat ? playerVolumes[c2.Key][c] : null);
                     }
                 }
             break; //not sure what returning false or true does, but it seems like returning false disposes
@@ -210,6 +204,69 @@ server.PacketHandler = (c, p) => {
 
     return true;
 };
+
+bool SendDiscordVolumeCommand(string perspectiveUser, string userToChangeLocalVolumeOf, float? newLocalVolume)
+{
+    //the two users are guaranteed to exist?
+    //if newLocalVolume is null set it to the user's default.
+    //multiply "newLocalVolume" against the userToChangeLocalVolumeOf's set gain.
+
+    //set the local volume of the user from the perspective of the perspectiveUser.
+    throw new NotImplementedException();
+}
+
+CommandHandler.RegisterCommand("vcpcorrlist", args =>
+{
+    if (args.Length != 0)
+    {
+        return "Usage: vcpcorrlist (no arguments)";
+    }
+    else
+    {
+        return string.Join("\n", igToDiscord.Select(x => $"ingame: \"{x.Key}\" discord: \"{x.Value}\""));
+    }
+});
+
+CommandHandler.RegisterCommand("vcpcorrdel", args =>
+{
+    if (args.Length != 1)
+    {
+        return "Usage: vcpcorrdel <ingameusername>";
+    }
+    else
+    {
+        if (igToDiscord.ContainsKey(args[0]))
+        {
+            igToDiscord.Remove(args[0]);
+            return "Successfully removed the sepcified user from the vcp correlation table.";
+        }
+        else
+        {
+            return $"No user with the in-game username \"{args[0]}\" exists in the vcp correlation table (Perhaps they weren't added with vcpcorr in the first place?).";
+        }
+    }
+});
+
+CommandHandler.RegisterCommand("vcpcorr", args => 
+{
+    //2 args, correlate discord username to ingame username
+    if (args.Length != 2 || !args[0].Contains("#")) //need the hashtag and number.
+    {
+        return "Usage: vcpcorr <discord#username ingameusername>";
+    }
+    else
+    {
+        igToDiscord[args[1]] = args[0];
+        if (server.Clients.Any(x => x.Name == args[1]))
+        {
+            return $"Sucessfully correlated the discord user \"{args[0]}\" to the in-game player \"{args[1]}\".";
+        }
+        else
+        {
+            return $"Correlated the discord user \"{args[0]}\" to the in-game player \"{args[1]}\", however, the player doesn't appear to be in-game yet.";
+        }
+    }
+});
 
 CommandHandler.RegisterCommand("voiceprox", args => {
     if (args.Length == 0)
@@ -227,6 +284,7 @@ CommandHandler.RegisterCommand("voiceprox", args => {
             return "Turned voice proximity on.";
         case "off":
             proxChat = false;
+
             return "Turned voice proximity off.";
         default:
             return "Usage: voiceprox <on|off>";
