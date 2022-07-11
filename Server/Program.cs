@@ -10,7 +10,7 @@ using Timer = System.Timers.Timer;
 Server.Server server = new Server.Server();
 HashSet<int> shineBag = new HashSet<int>();
 bool proxChat = false; //off by default.
-Dictionary<Client, (Vector3 pos, ushort act, ushort subact)> clientPositionCorrelate = new Dictionary<Client, (Vector3, ushort, ushort)>();
+Dictionary<Client, (Vector3 pos, byte? scen, string? stage)> clientPositionCorrelate = new Dictionary<Client, (Vector3, byte?, string?)>();
 Dictionary<Client, Dictionary<Client, float>> playerVolumes = new Dictionary<Client, Dictionary<Client, float>>(); //volume [0f : 0% - 1f : 100%]
 Dictionary<string, string> igToDiscord = new Dictionary<string, string>(); //ingame -> discord
 CancellationTokenSource cts = new CancellationTokenSource();
@@ -18,15 +18,6 @@ Task listenTask = server.Listen(cts.Token);
 Logger consoleLogger = new Logger("Console");
 DiscordBot bot = new DiscordBot();
 await bot.Run();
-
-Task.Run(async () => 
-{
-    while (true)
-    {
-        await Task.Delay(20);
-        bot.PVCDiscordCallbackLoop();
-    }
-});
 
 server.ClientJoined += (c, _) =>
 {
@@ -113,7 +104,11 @@ server.PacketHandler = (c, p) =>
                         c.Logger.Info("Entered Cap on new save, preventing moon sync until Cascade");
                         break;
                     case "WaterfallWorldHomeStage":
-                        bool wasSpeedrun = (bool)c.Metadata["speedrun"]!;
+                        if (c.Metadata.ContainsKey("speedrun"))
+                        {
+                            c.Metadata["speedrun"] = false;
+                        }
+                        bool wasSpeedrun = (bool)c.Metadata["speedrun"]!; //this threw keynotpresent under some circumstance on a non 100% file
                         c.Metadata["speedrun"] = false;
                         if (wasSpeedrun)
                             Task.Run(async () =>
@@ -151,7 +146,7 @@ server.PacketHandler = (c, p) =>
         case ShinePacket shinePacket:
             {
                 if (c.Metadata["loadedSave"] is false) break;
-                ConcurrentBag<int> playerBag = (ConcurrentBag<int>)c.Metadata["shineSync"];
+                ConcurrentBag<int> playerBag = ((ConcurrentBag<int>)(c.Metadata["shineSync"] ??= new ConcurrentBag<int>())); //keynotfoundexception, added null assignment.
                 shineBag.Add(shinePacket.ShineId);
                 if (playerBag.Contains(shinePacket.ShineId)) break;
                 c.Logger.Info($"Got moon {shinePacket.ShineId}");
@@ -184,11 +179,13 @@ server.PacketHandler = (c, p) =>
 
                     to.Send(sp, from);
                 });
+                byte? scen = c.Metadata.ContainsKey("scenario") ? (byte?)c.Metadata["scenario"] : null;
+                string? stage = c.Metadata.ContainsKey("lastGamePacket") ? ((GamePacket?)c.Metadata["lastGamePacket"])?.Stage : null;
+                UpdateProxChatDataForPlayer(c, (playerPacket.Position, scen, stage));
                 return false;
             }
         case PlayerPacket playerPacket:
             {
-                UpdateProxChatDataForPlayer(c, (playerPacket.Position, playerPacket.Act, playerPacket.SubAct));
                 break; //not sure what returning false or true does, but it seems like returning false disposes
                        //some memory, maybe returning false means a change in the connection status of a player?
             }
@@ -198,7 +195,7 @@ server.PacketHandler = (c, p) =>
     return true;
 };
 
-void UpdateProxChatDataForPlayer(Client c, (Vector3 pos, ushort act, ushort subact) playerInfo)
+void UpdateProxChatDataForPlayer(Client c, (Vector3 playerPos, byte? scen, string? stage) playerInfo)
 {
     clientPositionCorrelate[c] = playerInfo;
     bool forceSendVolData = false;
@@ -209,6 +206,10 @@ void UpdateProxChatDataForPlayer(Client c, (Vector3 pos, ushort act, ushort suba
         //O(playercount)
         foreach (Client cc in server.Clients)
         {
+            if (!playerVolumes.ContainsKey(cc))
+            {
+                playerVolumes[cc] = new Dictionary<Client, float>();
+            }
             if (cc != c)
             {
                 //my perspective of other players
@@ -221,9 +222,9 @@ void UpdateProxChatDataForPlayer(Client c, (Vector3 pos, ushort act, ushort suba
     }
 
     //TODO: load from config and/or make editable with a command.
-    const float beginHearingThreshold = 80f; //how far away other people are when you just barely start to hear them.
-    const float fullHearingThreshold = 20f; //players within this distance are max volume.
-    const float soundEpsilon = 0.05f; //if change in volume is lower than this amount, then don't bother changing it.
+    const float beginHearingThreshold = 3500f; //how far away other people are when you just barely start to hear them.
+    const float fullHearingThreshold = 750f; //players within this distance are max volume.
+    const float soundEpsilon = 0.005f; //if change in volume is lower than this amount, then don't bother changing it.
 
     float ClampedInvLerp(float a, float b, float v)
     {
@@ -238,10 +239,11 @@ void UpdateProxChatDataForPlayer(Client c, (Vector3 pos, ushort act, ushort suba
             continue;
         bool significantVolChange = false;
         float dist = Vector3.Distance(c1.pos, c2.Value.pos);
-        float vol = ClampedInvLerp(fullHearingThreshold, beginHearingThreshold, dist);
+        float vol = 1f - ClampedInvLerp(fullHearingThreshold, beginHearingThreshold, dist);
+        vol *= vol; //to linearize volume (which humans interpret logarithmically), we use exp to inverse and linearize. x^2 is cheap and close enough.
         if (Math.Abs(vol - playerVolumes[c][c2.Key]) > soundEpsilon)
         {
-            if (c1.act == c2.Value.act && c1.subact == c2.Value.subact)
+            if (/*c1.scen == c2.Value.scen && */c1.stage == c2.Value.stage && c1.scen != null && c1.stage != null)
             {
                 playerVolumes[c][c2.Key] = vol;
                 playerVolumes[c2.Key][c] = vol;
@@ -256,46 +258,39 @@ void UpdateProxChatDataForPlayer(Client c, (Vector3 pos, ushort act, ushort suba
         if ((igToDiscord.ContainsKey(c.Name) && igToDiscord.ContainsKey(c2.Key.Name)) && (forceSendVolData || significantVolChange))
         {
             //check if volume is different, if not, then don't send.
-            SendDiscordVolumeCommand(igToDiscord[c.Name], igToDiscord[c2.Key.Name], proxChat ? playerVolumes[c][c2.Key] : null);
-            SendDiscordVolumeCommand(igToDiscord[c2.Key.Name], igToDiscord[c.Name], proxChat ? playerVolumes[c2.Key][c] : null);
+            bot.ChangeVolume(igToDiscord[c.Name], igToDiscord[c2.Key.Name], proxChat ? playerVolumes[c][c2.Key] : null);
+            bot.ChangeVolume(igToDiscord[c2.Key.Name], igToDiscord[c.Name], proxChat ? playerVolumes[c2.Key][c] : null);
         }
     }
-}
-
-void SendDiscordVolumeCommand(string perspectiveUser, string userToChangeLocalVolumeOf, float? newLocalVolume)
-{
-    //if newLocalVolume is null set it to the user's default.
-    //set the local volume of the user from the perspective of the perspectiveUser.
-    bot.ChangeVolume(perspectiveUser, userToChangeLocalVolumeOf, newLocalVolume);
 }
 
 CommandHandler.RegisterCommand("help", _ => $"Valid commands: {string.Join(", ", CommandHandler.Handlers.Keys)}");
 
-CommandHandler.RegisterCommand("botlobby", args =>
-{
-    //Settings.Instance.Server.MaxPlayers
-    //Settings.Instance.Discord. //????
-    if (args.Length != 1)
-    {
-        return "Usage: botlobby <make|close>";
-    }
-    else
-    {
-        switch(args[0])
-        {
-            case "make":
-                //create the lobby
-                throw new NotImplementedException();
-                break;
-            case "close":
-                //close the lobby
-                throw new NotImplementedException();
-                break;
-            default:
-                return "Usage: botlobby <make|close>";
-        }
-    }
-});
+//CommandHandler.RegisterCommand("botlobby", args =>
+//{
+//    //Settings.Instance.Server.MaxPlayers
+//    //Settings.Instance.Discord. //????
+//    if (args.Length != 1)
+//    {
+//        return "Usage: botlobby <make|close>";
+//    }
+//    else
+//    {
+//        switch(args[0])
+//        {
+//            case "make":
+//                //create the lobby
+//                throw new NotImplementedException();
+//                break;
+//            case "close":
+//                //close the lobby
+//                throw new NotImplementedException();
+//                break;
+//            default:
+//                return "Usage: botlobby <make|close>";
+//        }
+//    }
+//});
 
 CommandHandler.RegisterCommand("vcpcorrlist", args =>
 {

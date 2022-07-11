@@ -14,7 +14,7 @@ using static Shared.Constants;
 
 object lockKey = new object(); //for locks to prevent race conditions
 
-byte defaultVol = 100;
+byte defaultVol = 150; //100% volume for discord is decently louder than 100 for this, hence 150 for default.
 Dictionary<long, User> userCache = new Dictionary<long, User>();
 Dictionary<string, long> nameToIdCache = new Dictionary<string, long>();
 Dictionary<long, byte> userPrefVolumes = new Dictionary<long, byte>(); //the volumes adjusted by the user (nothing to do with proximity).
@@ -54,48 +54,51 @@ Task discordTask = Task.Run(() =>
     while (currentUser == null)
     {
         discord.RunCallbacks(); //do this until we have the current user.
-        Thread.Sleep(50);
+        Thread.Sleep(16);
     }
     #endregion
 
     #region Event subscriptions
-    //lobbyManager.OnLobbyMessage += (lobbyID, userID, data) =>
-    //{
-    //    Console.WriteLine("lobby message: {0} {1}", lobbyID, Encoding.UTF8.GetString(data));
-    //};
-    //lobbyManager.OnSpeaking += (long lobbyId, long userId, bool speaking) =>
-    //{
-    //    Console.WriteLine($"{userId}{(userCache.ContainsKey(userId) ? $" ({userCache[userId].Username + "#" + userCache[userId].Discriminator})" : "")} is{(speaking ? "" : " not")} speaking");
-    //};
-
     //decode and apply message to change another user's volume.
-    lobbyManager.OnNetworkMessage += (long lobbyId, long userId, byte channelId, byte[] data) =>
+    lobbyManager.OnNetworkMessage += (long lobbyId, long userId, byte channel, byte[] data) =>
     {
-        if (data.Length != 80)
+        const int totalExpectedLength = ((32 + 5) + /*(32 + 5) +*/ (3)); //1st user + 2nd user + vol level
+        if (data.Length != totalExpectedLength * 2)
         {
             Console.WriteLine($"Recieved invalid message from {(userCache.ContainsKey(userId) ? userCache[userId].Username + "#" + userCache[userId].Discriminator : userId)}.");
         }
         else
         {
-            if (proxMode)
+            //Console.WriteLine("Received vol message");
+            messageQueue.Enqueue(() =>
             {
-                //update volumes.
-                string raw = Encoding.Unicode.GetString(data);
-                string user = raw.Substring(0, (32 + 5) * 2); //(max usrname len + # + discrim) * 2 bytes per char
-                string vol = raw.Substring(75, 6);
-                if (string.IsNullOrEmpty(vol))
+                lock (lockKey)
                 {
-                    //default volume for this user.
-                    voiceManager.SetLocalVolume(userCache[nameToIdCache[user]].Id, userPrefVolumes[userCache[nameToIdCache[user]].Id]);
+                    if (proxMode)
+                    {
+                        //update volumes.
+                        string raw = Encoding.Unicode.GetString(data);
+                        //string perspUser = raw.Substring(0, (32 + 5) * 2); //(max usrname len + # + discrim) * 2 bytes per char
+                        //if (perspUser == currentUser.Value.Username + "#" + currentUser.Value.Discriminator)
+                        {
+                            string targetUser = raw.Substring(0/*((32 + 5) * 2) + 1*/, (32 + 5)).Trim();
+                            string vol = raw.Substring(totalExpectedLength - 6, 6).Trim();
+                            if (string.IsNullOrEmpty(vol))
+                            {
+                                //default volume for this user.
+                                voiceManager.SetLocalVolume(userCache[nameToIdCache[targetUser]].Id, userPrefVolumes[userCache[nameToIdCache[targetUser]].Id]);
+                            }
+                            else
+                            {
+                                byte bvol = byte.Parse(vol);
+                                float fvol = (bvol / 100f);
+                                byte finalVolume = (byte)(fvol * userPrefVolumes[userCache[nameToIdCache[targetUser]].Id]);
+                                voiceManager.SetLocalVolume(userCache[nameToIdCache[targetUser]].Id, finalVolume);
+                            }
+                        }
+                    }
                 }
-                else
-                {
-                    byte bvol = byte.Parse(vol.Trim());
-                    float fvol = (bvol / 100f);
-                    byte finalVolume = (byte)(fvol * userPrefVolumes[userCache[nameToIdCache[user]].Id]);
-                    voiceManager.SetLocalVolume(userCache[nameToIdCache[user]].Id, finalVolume);
-                }
-            }
+            });
         }
     };
 
@@ -127,18 +130,29 @@ Task discordTask = Task.Run(() =>
     // run callback loop
     try
     {
+        System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
+        sw.Start();
         while (true)
         {
             lock (lockKey)
             {
-                while (messageQueue.Count > 0)
+                try
                 {
-                    messageQueue.Dequeue()(); //double parens? don't do this often in c#!
+                    while (messageQueue.Count > 0)
+                    {
+                        messageQueue.Dequeue()();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Issue in message loop: {ex.ToString()}");
                 }
             }
             discord.RunCallbacks();
-            Thread.Sleep(16); //1000 / 16 = ~60 times a second (not including the time it takes to do the callbacks
-                              //themselves e.g. if callbacks take ~4ms, then it's only 50 times a second.
+            lobbyManager.FlushNetwork();
+            while (sw.ElapsedMilliseconds < 16) { }
+            sw.Restart(); //1000 / 16 = ~60 times a second (not including the time it takes to do the callbacks
+                          //themselves e.g. if callbacks take ~4ms, then it's only 50 times a second.
         }
     }
     finally
@@ -165,13 +179,14 @@ CommandHandler.RegisterCommandAliases(args =>
     {
         lock (lockKey)
         {
-            messageQueue.Enqueue(new Action(() =>
+            messageQueue.Enqueue(() =>
             {
                 voiceManager.SetSelfDeaf(true);
                 voiceManager.SetSelfMute(true);
-            }));
+                Console.WriteLine("You have been deafened.");
+            });
         }
-        return "You have been deafened.";
+        return "";
     }
 }, "deafen", "d");
 
@@ -185,13 +200,14 @@ CommandHandler.RegisterCommandAliases(args =>
     {
         lock (lockKey)
         {
-            messageQueue.Enqueue(new Action(() =>
+            messageQueue.Enqueue(() =>
             {
                 voiceManager.SetSelfDeaf(false);
                 voiceManager.SetSelfMute(false);
-            }));
+                Console.WriteLine("You have been undeafened.");
+            });
         }
-        return "You have been undeafened.";
+        return "";
     }
 }, "undeafen", "ud");
 
@@ -205,7 +221,7 @@ CommandHandler.RegisterCommandAliases(args =>
     {
         lock (lockKey)
         {
-            messageQueue.Enqueue(new Action(() =>
+            messageQueue.Enqueue(() =>
             {
                 StringBuilder resultMessage = new StringBuilder();
                 //lock for critical section handled around the dequeue in the discord loop
@@ -217,16 +233,51 @@ CommandHandler.RegisterCommandAliases(args =>
                     }
                     else
                     {
-                        resultMessage.Append($"{kvp.Key}: {userPrefVolumes[kvp.Value]} ({(voiceManager.IsSelfDeaf() ? "deafened" : "not deafened")}) " +
-                            $"({(voiceManager.IsSelfMute() ? "muted" : "not muted")})\n");
+                        //you are not in the vol dictionary
+                        //resultMessage.Append($"{kvp.Key}: {userPrefVolumes[kvp.Value]} ({(voiceManager.IsSelfDeaf() ? "deafened" : "not deafened")}) " +
+                        //    $"({(voiceManager.IsSelfMute() ? "muted" : "not muted")})\n");
                     }
                 }
                 Console.Write(resultMessage.ToString());
-            }));
+            });
         }
         return "";
     }
 }, "vollist", "vl");
+
+CommandHandler.RegisterCommandAliases(args =>
+{
+    if (args.Length != 0)
+    {
+        return "Usage: truevollist (no arguments.)";
+    }
+    else
+    {
+        lock (lockKey)
+        {
+            messageQueue.Enqueue(() =>
+            {
+                StringBuilder resultMessage = new StringBuilder();
+                //lock for critical section handled around the dequeue in the discord loop
+                foreach (var kvp in nameToIdCache)
+                {
+                    if (kvp.Value != currentUser.Value.Id)
+                    {
+                        resultMessage.Append($"{kvp.Key}: {voiceManager.GetLocalVolume(kvp.Value)}\n");
+                    }
+                    else
+                    {
+                        //you are not in the vol dictionary
+                        //resultMessage.Append($"{kvp.Key}: {userPrefVolumes[kvp.Value]} ({(voiceManager.IsSelfDeaf() ? "deafened" : "not deafened")}) " +
+                        //    $"({(voiceManager.IsSelfMute() ? "muted" : "not muted")})\n");
+                    }
+                }
+                Console.Write(resultMessage.ToString());
+            });
+        }
+        return "";
+    }
+}, "truevollist", "tvl");
 
 CommandHandler.RegisterCommandAliases(args =>
 {
@@ -235,7 +286,7 @@ CommandHandler.RegisterCommandAliases(args =>
         //set to default.
         lock (lockKey) //lock for enqueue
         {
-            messageQueue.Enqueue(new Action(() =>
+            messageQueue.Enqueue(() =>
             {
                 //lock for critical section handled around the dequeue in the discord loop
                 if (nameToIdCache.ContainsKey(args[0]))
@@ -259,7 +310,7 @@ CommandHandler.RegisterCommandAliases(args =>
                 {
                     Console.WriteLine("That user does not appear to be in the lobby. No action was taken.");
                 }
-            }));
+            });
         }
         return "";
     }
@@ -269,7 +320,7 @@ CommandHandler.RegisterCommandAliases(args =>
         {
             lock (lockKey) //lock for enqueue
             {
-                messageQueue.Enqueue(new Action(() =>
+                messageQueue.Enqueue(() =>
                 {
                     //lock for critical section handled around the dequeue in the discord loop
                     if (nameToIdCache.ContainsKey(args[0]))
@@ -293,7 +344,7 @@ CommandHandler.RegisterCommandAliases(args =>
                     {
                         Console.WriteLine("That user does not appear to be in the lobby. No action was taken.");
                     }
-                }));
+                });
             }
             return "";
         }
@@ -318,7 +369,7 @@ CommandHandler.RegisterCommandAliases(args =>
     {
         lock (lockKey) //lock for enqueue
         {
-            messageQueue.Enqueue(new Action(() =>
+            messageQueue.Enqueue(() =>
             {
                 //lock for critical section handled around the dequeue in the discord loop
                 foreach (var userId in userCache.Keys)
@@ -340,7 +391,7 @@ CommandHandler.RegisterCommandAliases(args =>
                     }
                 }
                 Console.WriteLine($"Set the volumes of all of the users to the default volume of {defaultVol}.");
-            }));
+            });
         }
         return "";
     }
@@ -372,9 +423,34 @@ CommandHandler.RegisterCommandAliases(args =>
     {
         lock (lockKey) //lock so we can enqueue
         {
-            messageQueue.Enqueue(new Action(() =>
+            messageQueue.Enqueue(() =>
             {
                 //lock for critical section handled around the dequeue in the discord loop
+                if (lob != null)
+                {
+                    StringBuilder resultMessage = new StringBuilder();
+                    resultMessage.Append("You are already in a lobby! leaving the current lobby...");
+                    lobbyManager.DisconnectLobby(lob.Value.Id, res =>
+                    {
+                        if (res != Result.Ok)
+                        {
+                            resultMessage.Append($"Something went wrong with leaving the lobby: {res.ToString()}");
+                        }
+                        else
+                        {
+                            resultMessage.Append("You left the lobby");
+                            userCache.Clear();
+                            userPrefVolumes.Clear();
+                            nameToIdCache.Clear();
+                            lob = null;
+                        }
+                        Console.Write(resultMessage.ToString());
+                    });
+                }
+                while (lob != null)
+                {
+                    discord.RunCallbacks();
+                }
                 lobbyManager.ConnectLobby(long.Parse(args[0]), args[1], (Result res, ref Lobby lobby) =>
                 {
                     StringBuilder resultMessage = new StringBuilder(); //aggregating so that messages don't get
@@ -412,12 +488,13 @@ CommandHandler.RegisterCommandAliases(args =>
                         {
                             resultMessage.Append("Joined vc.\n");
                         }
+                        Console.Write(resultMessage.ToString());
                     });
-                    Console.Write(resultMessage.ToString());
                     lobbyManager.ConnectNetwork(lobby.Id);
+                    lobbyManager.OpenNetworkChannel(lobby.Id, 0, true);
                     lob = lobby;
                 });
-            }));
+            });
         }
         return ""; //result message will be printed through the discord loop instead.
     }
@@ -432,31 +509,35 @@ CommandHandler.RegisterCommandAliases(args =>
     }
     else
     {
-        if (lob != null)
+        lock (lockKey)
         {
-            lock (lockKey)
+            messageQueue.Enqueue(() =>
             {
-                messageQueue.Enqueue(new Action(() =>
+                if (lob != null)
                 {
                     lobbyManager.DisconnectLobby(lob.Value.Id, res =>
                     {
                         if (res != Result.Ok)
                         {
-                            Console.WriteLine("You left the lobby");
-                            //empty the dictionaries
+                            Console.WriteLine($"Something went wrong with leaving the lobby: {res.ToString()}");
                         }
                         else
                         {
-                            Console.WriteLine($"Something went wrong with leaving the lobby: {res.ToString()}");
+                            Console.WriteLine("You left the lobby");
+                            lobbyManager.DisconnectNetwork(lob.Value.Id);
+                            userCache.Clear();
+                            userPrefVolumes.Clear();
+                            nameToIdCache.Clear();
+                            lob = null;
                         }
                     });
-                }));
-            }
+                }
+                else
+                {
+                    Console.WriteLine("You aren't in a lobby to begin with! (No action was taken.)");
+                }
+            });
             return "";
-        }
-        else
-        {
-            return "You aren't in a lobby to begin with! (No action was taken.)";
         }
     }
 }, "leavelobby", "ll");
@@ -472,7 +553,7 @@ CommandHandler.RegisterCommandAliases(args =>
         proxMode = true;
         lock (lockKey) //lock for enqueue
         {
-            messageQueue.Enqueue(new Action(() =>
+            messageQueue.Enqueue(() =>
             {
                 //lock for critical section handled around the dequeue in the discord loop
                 foreach (var userId in userCache.Keys)
@@ -483,7 +564,7 @@ CommandHandler.RegisterCommandAliases(args =>
                     }
                 }
                 Console.WriteLine($"Successfully enabled voice proximity.");
-            }));
+            });
         }
         return "";
     }
@@ -500,7 +581,7 @@ CommandHandler.RegisterCommandAliases(args =>
         proxMode = false;
         lock (lockKey) //lock for enqueue
         {
-            messageQueue.Enqueue(new Action(() =>
+            messageQueue.Enqueue(() =>
             {
                 //lock for critical section handled around the dequeue in the discord loop
                 foreach (var userId in userCache.Keys)
@@ -511,7 +592,7 @@ CommandHandler.RegisterCommandAliases(args =>
                     }
                 }
                 Console.WriteLine($"Successfully disabled voice proximity.");
-            }));
+            });
         }
         return "";
     }
@@ -523,25 +604,27 @@ CommandHandler.RegisterCommandAliases(args =>
     {
         lock (lockKey)
         {
-            messageQueue.Enqueue(new Action(() =>
+            messageQueue.Enqueue(() =>
             {
                 voiceManager.SetSelfMute(true);
-            }));
+                Console.WriteLine("You have been muted.");
+            });
         }
-        return "You have been muted.";
+        return "";
     }
     else if (args.Length == 1)
     {
-        if (nameToIdCache.ContainsKey(args[0]))
+        if (nameToIdCache.ContainsKey(args[0])) //race condition, what if they're present now but are gone when the message is executed?
         {
             lock (lockKey)
             {
-                messageQueue.Enqueue(new Action(() =>
+                messageQueue.Enqueue(() =>
                 {
                     voiceManager.SetLocalMute(nameToIdCache[args[0]], true);
-                }));
+                    Console.WriteLine($"The user \"{args[0]}\" has been muted locally.");
+                });
             }
-            return $"The user \"{args[0]}\" has been muted locally.";
+            return "";
         }
         else
         {
@@ -560,12 +643,13 @@ CommandHandler.RegisterCommandAliases(args =>
     {
         lock (lockKey)
         {
-            messageQueue.Enqueue(new Action(() =>
+            messageQueue.Enqueue(() =>
             {
                 voiceManager.SetSelfMute(false);
-            }));
+                Console.WriteLine("You have been unmuted.");
+            });
         }
-        return "You have been unmuted.";
+        return "";
     }
     else if (args.Length == 1)
     {
@@ -573,12 +657,13 @@ CommandHandler.RegisterCommandAliases(args =>
         {
             lock (lockKey)
             {
-                messageQueue.Enqueue(new Action(() =>
+                messageQueue.Enqueue(() =>
                 {
                     voiceManager.SetLocalMute(nameToIdCache[args[0]], false);
-                }));
+                    Console.WriteLine($"The user \"{args[0]}\" has been unmuted locally.");
+                });
             }
-            return $"The user \"{args[0]}\" has been unmuted locally.";
+            return "";
         }
         else
         {
@@ -591,6 +676,49 @@ CommandHandler.RegisterCommandAliases(args =>
     }
 }, "unmute", "um");
 
+CommandHandler.RegisterCommandAliases(args =>
+{
+    if (args.Length != 0)
+    {
+        return "Usage: help (no arguments)";
+    }
+    else
+    {   //dont linewrap this string to keep horizontal length from exceeding 120 (newlines are literal)
+        string helpInfo = @"
+deafen, d - equivalent to a discord deafen (you can't hear anyone, nobody can hear you)
+
+undeafen, ud - equivalent to a discord undeafen
+
+mute, m <optional: username> - mutes the specified user locally, if no user is specified, you are muted globally
+
+unmute, um <optional: username> - unmutes the specified user locally, if no user is specified, you are unmuted globally
+
+vollist, vl - lists the user-set volume levels for everyone in the lobby
+
+truevollist, tvl - lists the current volume levels for everyone in the lobby (e.g. prox chat makes people far away quiet, so for far away players it will report 0)
+
+volset, vs <username> <optional: volume 0-200> - sets the volume of the specified user to the specified amount, if no volume is specified, the volume will be set to default
+
+voldefaultall, vda - sets everyone to the default volume level
+
+volsetdefault, vsd <volume 0-200> - sets a new default volume level, this does not change the volume of any user (default is 100)
+
+joinlobby, jl <lobby id> <lobby secret> - joins your client to a voice lobby for proximity chat
+
+leavelobby, ll - leaves the lobby your in (if you aren't in a lobby, this does nothing)
+
+proxon, pon - enables voice proximity, this will mute all other user until proximity data arrives
+
+proxoff, poff - disables voice proximity, this will restore all users to their pre-proximity chat volumes
+
+startlobby - [TESTING ONLY] starts a voice lobby.
+
+help, h - shows this helpful command list
+";
+        return helpInfo;
+    }
+}, "help", "h");
+
 //testing purposes only
 CommandHandler.RegisterCommandAliases(args =>
 {
@@ -600,7 +728,7 @@ CommandHandler.RegisterCommandAliases(args =>
     }
     else
     {
-        messageQueue.Enqueue(new Action(() =>
+        messageQueue.Enqueue(() =>
         {
             var trans = lobbyManager.GetLobbyCreateTransaction();
             trans.SetCapacity(4);
@@ -626,55 +754,14 @@ CommandHandler.RegisterCommandAliases(args =>
                     }
                 });
                 lobbyManager.ConnectNetwork(lobby.Id);
-                lobbyManager.OpenNetworkChannel(lobby.Id, 0, true);
+                //lobbyManager.OpenNetworkChannel(lobby.Id, 0, true);
                 lob = lobby;
                 Console.WriteLine(resultMessage.ToString());
             });
-        }));
+        });
         return "";
     }
 }, "startlobby");
-
-CommandHandler.RegisterCommandAliases(args =>
-{
-    if (args.Length != 0)
-    {
-        return "Usage: help (no arguments)";
-    }
-    else
-    {   //dont linewrap this string to keep horizontal length from exceeding 120 (newlines are literal)
-        string helpInfo = @"
-deafen, d - equivalent to a discord deafen (you can't hear anyone, nobody can hear you)
-
-undeafen, ud - equivalent to a discord undeafen
-
-mute, m <optional: username> - mutes the specified user locally, if no user is specified, you are muted globally
-
-unmute, um <optional: username> - unmutes the specified user locally, if no user is specified, you are unmuted globally
-
-vollist, vl - lists the set volume levels for everyone in the lobby
-
-volset, vs <username> <optional: volume 0-200> - sets the volume of the specified user to the specified amount, if no volume is specified, the volume will be set to default
-
-voldefaultall, vda - sets everyone to the default volume level
-
-volsetdefault, vsd <volume 0-200> - sets a new default volume level, this does not change the volume of any user (default is 100)
-
-joinlobby, jl <lobby id> <lobby secret> - joins your client to a voice lobby for proximity chat
-
-leavelobby, ll - leaves the lobby your in (if you aren't in a lobby, this does nothing)
-
-proxon, pon - enables voice proximity, this will mute all other user until proximity data arrives
-
-proxoff, poff - disables voice proximity, this will restore all users to their pre-proximity chat volumes
-
-startlobby - [TESTING ONLY] starts a voice lobby.
-
-help, h - shows this helpful command list
-";
-        return helpInfo;
-    }
-}, "help", "h");
 #endregion
 
 #region Command loop
@@ -691,9 +778,10 @@ while (true)
     string? text = Console.ReadLine();
     if (text != null)
     {
-        foreach (string returnString in CommandHandler.GetResult(text).ReturnStrings)
+        string[] info = CommandHandler.GetResult(text).ReturnStrings;
+        if (!Array.TrueForAll(info, x => string.IsNullOrEmpty(x)))
         {
-            Console.WriteLine(returnString);
+            Console.WriteLine(string.Join('\n', info));
         }
     }
 }

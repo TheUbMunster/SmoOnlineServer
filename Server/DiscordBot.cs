@@ -7,10 +7,8 @@ using Shared;
 namespace Server;
 
 public class DiscordBot {
-    private Discord.Discord pvcDiscord = new Discord.Discord(Constants.clientId, (long)Discord.CreateFlags.Default);
     private Dictionary<string, long> discUserToId = new Dictionary<string, long>();
     private Dictionary<long, Discord.User> discUserTable = new Dictionary<long, Discord.User>();
-    private Discord.Lobby? pvcLobby = null;
     private DiscordClient? DiscordClient;
     private string? Token;
     private Settings.DiscordTable Config => Settings.Instance.Discord;
@@ -18,6 +16,17 @@ public class DiscordBot {
     private readonly Logger Logger = new Logger("Discord");
     private DiscordChannel? LogChannel;
     private bool Reconnecting;
+
+    #region Discord voice stuff
+    private Queue<Action> messageQueue = new Queue<Action>();
+    private object lockKey = new object();
+    private Discord.Discord? pvcDiscord = null;
+    private Discord.Lobby? pvcLobby = null;
+    private Discord.LobbyManager? lobbyManager = null;
+    private Discord.VoiceManager? voiceManager = null;
+    private Discord.UserManager? userManager = null;
+    private Discord.User? currentUser = null;
+    #endregion
 
     public DiscordBot() {
         Token = Config.Token;
@@ -28,15 +37,98 @@ public class DiscordBot {
             Task.Run(Reconnect);
             return "Restarting Discord bot";
         });
+
+        CommandHandler.RegisterCommand("jc", _ =>
+        {
+            return $"jl {pvcLobby.Value.Id} {pvcLobby.Value.Secret}";
+        });
+        CommandHandler.RegisterCommand("lll", _ =>
+        {
+            if (pvcLobby != null)
+            {
+                lock (lockKey)
+                {
+                    var users = lobbyManager.GetMemberUsers(pvcLobby.Value.Id);
+                    return $"All users in the lobby: {string.Join(",\n", users.Select(x => $"{x.Id}: {x.Username}#{x.Discriminator}"))}";
+                }
+            }
+            else
+            {
+                return "Not currently in a lobby.";
+            }
+        });
+
         if (Config.Token == null) return;
         Settings.LoadHandler += SettingsLoadHandler;
+        #region Discord voice lobby stuff
+        using (SemaphoreSlim sm = new SemaphoreSlim(0, 1))
+        {
+            Task discordTask = Task.Run(() =>
+            {
+                #region Setup
+                pvcDiscord = new Discord.Discord(Constants.clientId, (UInt64)Discord.CreateFlags.Default);
+                lobbyManager = pvcDiscord.GetLobbyManager();
+                voiceManager = pvcDiscord.GetVoiceManager();
+                userManager = pvcDiscord.GetUserManager();
+                userManager.OnCurrentUserUpdate += () =>
+                {
+                    currentUser = userManager.GetCurrentUser();
+                };
+                while (currentUser == null)
+                {
+                    pvcDiscord.RunCallbacks();
+                    Thread.Sleep(16);
+                }
+                sm.Release();
+                //pvcDiscord.SetLogHook(Discord.LogLevel.Debug, (level, message) =>
+                //{
+                //    Logger.Info($"Log[{level}] {message}");
+                //});
+                #endregion
+
+                #region Callback loop
+                try
+                {
+                    System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
+                    sw.Start();
+                    while (true)
+                    {
+                        lock (lockKey)
+                        {
+                            try
+                            {
+                                while (messageQueue.Count > 0)
+                                {
+                                    messageQueue.Dequeue()();
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Logger.Error($"Issue in message loop: {ex.ToString()}");
+                            }
+                        }
+                        pvcDiscord.RunCallbacks();
+                        lobbyManager.FlushNetwork();
+                        while (sw.ElapsedMilliseconds < 16) { } //busy wait because all forms of "sleep" have poor accuracy (granularity of like 10ms, caused by the scheduler event cadence)
+                        sw.Restart(); //1000 / 16 = ~60 times a second (not including the time it takes to do the callbacks
+                                      //themselves e.g. if callbacks take ~4ms, then it's only 50 times a second.
+                    }
+                }
+                finally
+                {
+                    pvcDiscord.Dispose();
+                }
+                #endregion
+            });
+            sm.Wait();
+        }
+        #endregion
     }
 
     private async Task Reconnect() {
         if (DiscordClient != null) // usually null prop works, not here though...`
         {
             await DiscordClient.DisconnectAsync();
-            ClosePVCLobbyIfOpen();
         }
         await Run();
     }
@@ -68,103 +160,136 @@ public class DiscordBot {
         }
     }
 
-    public void PVCDiscordCallbackLoop()
-    {
-        pvcDiscord?.RunCallbacks();
-    }
+    
+
 
     public void ChangeVolume(string perspectiveUser, string target, float? vol)
     {
-        var lobbyManager = pvcDiscord.GetLobbyManager();
-        if (pvcLobby != null)
+        lock (lockKey)
         {
-            if (discUserToId.ContainsKey(perspectiveUser))
+            messageQueue.Enqueue(() =>
             {
-                byte[] data = System.Text.Encoding.Unicode.GetBytes(target.PadRight(37) + ((vol == null) ? "   " : ((byte)(vol * 100)).ToString()));
-                lobbyManager.SendNetworkMessage(pvcLobby.Value.Id, discUserToId[perspectiveUser], 0, data);
-            }
-            else
-            {
-                //that user doesn't seem to be in the lobby.
-            }
-        }
-        else
-        {
-            //don't call it when there's no lobby you goof.
+                if (pvcLobby != null)
+                {
+                    if (discUserToId.ContainsKey(perspectiveUser))
+                    {
+                        byte[] data = System.Text.Encoding.Unicode.GetBytes(/*perspectiveUser.PadRight(37) + */target.PadRight(37) + ((vol == null) ? "   " : ((byte)(vol * 100)).ToString().PadRight(3)));
+                        //todo: make this more efficent to send messages in batches to single users
+                        lobbyManager.SendNetworkMessage(pvcLobby.Value.Id, discUserToId[perspectiveUser], 0, data);
+                        //Console.WriteLine("sent vol dat");
+                    }
+                    else
+                    {
+                        //that user doesn't seem to be in the lobby.
+                        //Logger.Error($"Attempt to change volume of users from the perspective of {perspectiveUser}, even though they aren't in the lobby.");
+                    }
+                }
+                else
+                {
+                    //don't call it when there's no lobby you goof.
+                    Logger.Error("Call to ChangeVolume when there is no lobby.");
+                }
+            });
         }
     }
 
     private void ClosePVCLobbyIfOpen()
     {
-        var lobbyManager = pvcDiscord.GetLobbyManager();
-        if (pvcLobby != null) //close old lobby if it's still around (restart?)
+        lock (lockKey)
         {
-            using (SemaphoreSlim sm = new SemaphoreSlim(0, 1))
+            messageQueue.Enqueue(() =>
             {
-                bool issue = false;
-                lobbyManager.DeleteLobby(pvcLobby.Value.Id, (res) =>
+                if (pvcLobby != null) //close old lobby if it's still around (restart?)
                 {
-                    if (res != Discord.Result.Ok)
+                    lobbyManager.DeleteLobby(pvcLobby.Value.Id, (res) =>
                     {
-                        Logger.Error("Discord runner had an issue when deleting an old pvc lobby.");
-                        issue = true;
-                    }
-                    sm.Release();
-                });
-                sm.Wait();
-                if (issue)
-                {
-                    //return; //do something maybe?
+                        if (res != Discord.Result.Ok)
+                        {
+                            Logger.Info("Discord runner closed the pvc lobby.");
+                            discUserToId.Clear();
+                            discUserTable.Clear();
+                            pvcLobby = null;
+                        }
+                        else
+                        {
+                            Logger.Error("Discord runner had an issue when deleting an old pvc lobby.");
+                        }
+                    });
                 }
-            }
-            discUserToId.Clear();
-            discUserTable.Clear();
+            });
         }
     }
 
     private void OpenPVCLobby()
     {
-        var lobbyManager = pvcDiscord.GetLobbyManager();
-        var userManager = pvcDiscord.GetUserManager();
-        var trans = lobbyManager.GetLobbyCreateTransaction();
-        trans.SetCapacity(Settings.Instance.Server.MaxPlayers);
-        trans.SetType(Discord.LobbyType.Private);
-        lobbyManager.CreateLobby(trans, (Discord.Result res, ref Discord.Lobby lobby) =>
+        lock (lockKey)
         {
-            if (res != Discord.Result.Ok)
+            messageQueue.Enqueue(() =>
             {
-                Logger.Error("Discord runner had an issue when creating a pvc lobby.");
-                return;
-            }
-            Logger.Info($"Discord PVC Lobby Id: {lobby.Id} Secret: {lobby.Secret}");
-            lobbyManager.ConnectNetwork(lobby.Id);
-            lobbyManager.OpenNetworkChannel(lobby.Id, 0, true);
-            lobbyManager.OnMemberConnect += (long lobbyId, long userId) =>
-            {
-                userManager.GetUser(userId, (Discord.Result res, ref Discord.User user) =>
+                var trans = lobbyManager.GetLobbyCreateTransaction();
+                trans.SetCapacity(Settings.Instance.Server.MaxPlayers);
+                trans.SetType(Discord.LobbyType.Private);
+                Logger.Info("Attempting to open pvc lobby");
+                lobbyManager.CreateLobby(trans, (Discord.Result res, ref Discord.Lobby lobby) =>
                 {
-                    discUserTable[user.Id] = user;
-                    discUserToId[user.Username + "#" + user.Discriminator] = user.Id;
+                    if (res != Discord.Result.Ok)
+                    {
+                        Logger.Error("Discord runner had an issue when creating a pvc lobby.");
+                        return;
+                    }
+                    Logger.Info($"Discord PVC Lobby Id: {lobby.Id} Secret: {lobby.Secret}");
+                    discUserTable[currentUser.Value.Id] = currentUser.Value;
+                    discUserToId[currentUser.Value.Username + "#" + currentUser.Value.Discriminator] = currentUser.Value.Id;
+                    pvcLobby = lobby;
+                    lobbyManager.ConnectNetwork(lobby.Id);
+                    lobbyManager.OpenNetworkChannel(lobby.Id, 0, true);
+                    lobbyManager.OnMemberConnect += (long lobbyId, long userId) =>
+                    {
+                        userManager.GetUser(userId, (Discord.Result res, ref Discord.User user) =>
+                        {
+                            discUserTable[user.Id] = user;
+                            discUserToId[user.Username + "#" + user.Discriminator] = user.Id;
+                        });
+                    };
+                    lobbyManager.OnMemberDisconnect += (long lobbyId, long userId) =>
+                    {
+                        discUserToId.Remove(discUserTable[userId].Username + "#" + discUserTable[userId].Discriminator);
+                        discUserTable.Remove(userId);
+                    };
                 });
-            };
-            lobbyManager.OnMemberDisconnect += (long lobbyId, long userId) =>
-            {
-                discUserToId.Remove(discUserTable[userId].Username + "#" + discUserTable[userId].Discriminator);
-                discUserTable.Remove(userId);
-            };
-            pvcLobby = lobby;
-        });
+            });
+        }
     }
 
     public void ChangePVCLobbySize(int newSize)
     {
-        var lobbyManager = pvcDiscord.GetLobbyManager();
-        var trans = lobbyManager.GetLobbyCreateTransaction();
-        trans.SetCapacity(Settings.Instance.Server.MaxPlayers);
-        lobbyManager.UpdateLobby(pvcLobby.Value.Id, trans, x => { });
+        lock (lockKey)
+        {
+            messageQueue.Enqueue(() =>
+            {
+                if (pvcLobby != null)
+                {
+                    var trans = lobbyManager.GetLobbyCreateTransaction();
+                    trans.SetCapacity(Settings.Instance.Server.MaxPlayers); //race condition probably
+                    lobbyManager.UpdateLobby(pvcLobby.Value.Id, trans, x => 
+                    {
+                        if (x != Discord.Result.Ok)
+                        {
+                            Logger.Error("The discord runner had an issue changing the pvc lobby size");
+                        }
+                        else
+                        {
+                            Logger.Error($"The discord runner changed the pvc lobby size to {Settings.Instance.Server.MaxPlayers}.");
+                        }
+                    });
+                }
+            });
+        }
     }
 
+
     public async Task Run() {
+        ClosePVCLobbyIfOpen();
         OpenPVCLobby();
 
 
