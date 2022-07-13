@@ -9,10 +9,12 @@ using Timer = System.Timers.Timer;
 
 Server.Server server = new Server.Server();
 HashSet<int> shineBag = new HashSet<int>();
+
 bool proxChat = false; //off by default.
 Dictionary<Client, (Vector3 pos, byte? scen, string? stage)> clientPositionCorrelate = new Dictionary<Client, (Vector3, byte?, string?)>();
 Dictionary<Client, Dictionary<Client, float>> playerVolumes = new Dictionary<Client, Dictionary<Client, float>>(); //volume [0f : 0% - 1f : 100%]
 Dictionary<string, string> igToDiscord = new Dictionary<string, string>(); //ingame -> discord
+
 CancellationTokenSource cts = new CancellationTokenSource();
 Task listenTask = server.Listen(cts.Token);
 Logger consoleLogger = new Logger("Console");
@@ -181,13 +183,8 @@ server.PacketHandler = (c, p) =>
                 });
                 byte? scen = c.Metadata.ContainsKey("scenario") ? (byte?)c.Metadata["scenario"] : null;
                 string? stage = c.Metadata.ContainsKey("lastGamePacket") ? ((GamePacket?)c.Metadata["lastGamePacket"])?.Stage : null;
-                UpdateProxChatDataForPlayer(c, (playerPacket.Position, scen, stage));
+                UpdateProxChatDataForPlayer(c, (playerPacket.Position, scen, stage)); //this might also need to be in the other playerPacket case?
                 return false;
-            }
-        case PlayerPacket playerPacket:
-            {
-                break; //not sure what returning false or true does, but it seems like returning false disposes
-                       //some memory, maybe returning false means a change in the connection status of a player?
             }
 
     }
@@ -231,6 +228,7 @@ void UpdateProxChatDataForPlayer(Client c, (Vector3 playerPos, byte? scen, strin
         return v < a ? 0 : (v > b ? 1 : (v - a) / (b - a)); //see "linear interpolation"
     }
 
+    PVCDataPacket mainClient = new PVCDataPacket() { Tick = PVCDataPacket.Ticker++ };
     //O(playerCount)
     var c1 = clientPositionCorrelate[c];
     foreach (var c2 in clientPositionCorrelate)
@@ -240,10 +238,11 @@ void UpdateProxChatDataForPlayer(Client c, (Vector3 playerPos, byte? scen, strin
         bool significantVolChange = false;
         float dist = Vector3.Distance(c1.pos, c2.Value.pos);
         float vol = 1f - ClampedInvLerp(fullHearingThreshold, beginHearingThreshold, dist);
+        //may or may not want this
         vol *= vol; //to linearize volume (which humans interpret logarithmically), we use exp to inverse and linearize. x^2 is cheap and close enough.
         if (Math.Abs(vol - playerVolumes[c][c2.Key]) > soundEpsilon)
         {
-            if (/*c1.scen == c2.Value.scen && */c1.stage == c2.Value.stage && c1.scen != null && c1.stage != null)
+            if (/*c1.scen == c2.Value.scen && */c1.stage == c2.Value.stage /*&& c1.scen != null*/ && c1.stage != null)
             {
                 playerVolumes[c][c2.Key] = vol;
                 playerVolumes[c2.Key][c] = vol;
@@ -255,14 +254,33 @@ void UpdateProxChatDataForPlayer(Client c, (Vector3 playerPos, byte? scen, strin
             }
             significantVolChange = true;
         }
+        //cache data to send.
         if ((igToDiscord.ContainsKey(c.Name) && igToDiscord.ContainsKey(c2.Key.Name)) && (forceSendVolData || significantVolChange))
         {
-            //check if volume is different, if not, then don't send.
-            bot.ChangeVolume(igToDiscord[c.Name], igToDiscord[c2.Key.Name], proxChat ? playerVolumes[c][c2.Key] : null);
-            bot.ChangeVolume(igToDiscord[c2.Key.Name], igToDiscord[c.Name], proxChat ? playerVolumes[c2.Key][c] : null);
+            mainClient.Volumes[igToDiscord[c2.Key.Name]] = proxChat ? (byte)(100 * playerVolumes[c][c2.Key]) : null;
+            //bot.ChangeVolume(igToDiscord[c.Name], igToDiscord[c2.Key.Name], proxChat ? playerVolumes[c][c2.Key] : null);
+            var packet = new PVCDataPacket() { Tick = PVCDataPacket.Ticker++ };
+            packet.Volumes[igToDiscord[c.Name]] = proxChat ? (byte)(100 * playerVolumes[c2.Key][c]) : null;
+            VoiceProxServer.Instance.SendDataPacket(packet, igToDiscord[c2.Key.Name]);
+            //bot.ChangeVolume(igToDiscord[c2.Key.Name], igToDiscord[c.Name], proxChat ? playerVolumes[c2.Key][c] : null);
         }
     }
+    VoiceProxServer.Instance.SendDataPacket(mainClient, igToDiscord[c.Name]);
 }
+
+VoiceProxServer.Instance.onMessageRecieved += data =>
+{
+    PVCClientHandshakePacket? handshake = System.Text.Json.JsonSerializer.Deserialize<PVCClientHandshakePacket>(new ReadOnlySpan<byte>(data));
+    if (handshake != null)
+    {
+        if (handshake.IngameUsername != null && handshake.DiscordUsername != null)
+        {
+            igToDiscord[handshake.IngameUsername] = handshake.DiscordUsername;
+        }
+        else
+            consoleLogger.Warn("PVC recieved handshake, but could not correlate ig to discord as both were not present.");
+    }
+};
 
 CommandHandler.RegisterCommand("help", _ => $"Valid commands: {string.Join(", ", CommandHandler.Handlers.Keys)}");
 
@@ -329,7 +347,7 @@ CommandHandler.RegisterCommand("vcpcorr", args =>
     //2 args, correlate discord username to ingame username
     if (args.Length != 2 || !args[0].Contains("#")) //need the hashtag and number.
     {
-        return "Usage: vcpcorr <discord#username ingameusername>";
+        return "Usage: vcpcorr <discord#username> <ingameusername>";
     }
     else
     {
@@ -359,10 +377,11 @@ CommandHandler.RegisterCommand("voiceprox", args =>
     {
         case "on":
             proxChat = true;
+            //set people's volumes
             return "Turned voice proximity on.";
         case "off":
             proxChat = false;
-
+            //return everyone to full volume
             return "Turned voice proximity off.";
         default:
             return "Usage: voiceprox <on|off>";

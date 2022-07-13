@@ -29,7 +29,8 @@ public static class CommandHandler {
             newArgs.Add(args[0]);
             for (int i = 1; i < args.Length; i++)
             {
-                if (args[i][0] == '\"')
+                if (args[i].Length == 0) continue; //empty string (>1 whitespace between arguments).
+                else if (args[i][0] == '\"')
                 {
                     //concatenate args until a string ends with a quote
                     StringBuilder sb = new StringBuilder();
@@ -40,7 +41,7 @@ public static class CommandHandler {
                         sb.Append(args[i] + " "); //add space back removed by the string.Split(' ')
                         if (i >= args.Length)
                         {
-                            return "Unmatching quotes, make sure that whenever quotes are used, another quote is present to close it";
+                            return "Unmatching quotes, make sure that whenever quotes are used, another quote is present to close it (no action was performed).";
                         }
                     } while (args[i][^1] != '\"');
                     newArgs.Add(sb.ToString(1, sb.Length - 3)); //remove quotes and extra space at the end.

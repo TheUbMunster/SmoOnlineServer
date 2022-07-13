@@ -10,10 +10,13 @@ using System;
 using System.Text;
 using System.Threading.Tasks;
 using Shared;
+using System.Net.Sockets;
 using static Shared.Constants;
 
-object lockKey = new object(); //for locks to prevent race conditions
+IPAddress? serverAddress = null;
+Socket serverSocket = null!;
 
+object lockKey = new object(); //for locks to prevent race conditions
 byte defaultVol = 150; //100% volume for discord is decently louder than 100 for this, hence 150 for default.
 Dictionary<long, User> userCache = new Dictionary<long, User>();
 Dictionary<string, long> nameToIdCache = new Dictionary<string, long>();
@@ -28,139 +31,164 @@ bool proxMode = false;
 User? currentUser = null;
 Lobby? lob = null;
 
-Task discordTask = Task.Run(() =>
+using (SemaphoreSlim sema = new SemaphoreSlim(0, 1))
 {
-    #region Setup
-    discord = new Discord.Discord(clientId, (UInt64)Discord.CreateFlags.Default);
-    lobbyManager = discord.GetLobbyManager();
-    voiceManager = discord.GetVoiceManager();
-    // Use your client ID from Discord's developer site.
-    discord.SetLogHook(Discord.LogLevel.Debug, (level, message) =>
+    Task udpTask = Task.Run(() =>
     {
-        Console.WriteLine("Log[{0}] {1}", level, message); //I've never seen this print anything?
+        serverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp) { Blocking = false, NoDelay = true };
+        sema.Release();
     });
-    #endregion
 
-    #region Current User aquisition
-    var userManager = discord.GetUserManager();
-    // GetCurrentUser will error until this fires once.
-    userManager.OnCurrentUserUpdate += () =>
+    Task discordTask = Task.Run(() =>
     {
-        currentUser = userManager.GetCurrentUser();
-        userCache[currentUser.Value.Id] = currentUser.Value;
-        nameToIdCache[currentUser.Value.Username + "#" + currentUser.Value.Discriminator] = currentUser.Value.Id;
-        //broadcast change if in lobby (just use OnMemberUpdate instead)
-    };
-    while (currentUser == null)
-    {
-        discord.RunCallbacks(); //do this until we have the current user.
-        Thread.Sleep(16);
-    }
-    #endregion
-
-    #region Event subscriptions
-    //decode and apply message to change another user's volume.
-    lobbyManager.OnNetworkMessage += (long lobbyId, long userId, byte channel, byte[] data) =>
-    {
-        const int totalExpectedLength = ((32 + 5) + /*(32 + 5) +*/ (3)); //1st user + 2nd user + vol level
-        if (data.Length != totalExpectedLength * 2)
+        #region Setup
+        discord = new Discord.Discord(clientId, (UInt64)Discord.CreateFlags.Default);
+        lobbyManager = discord.GetLobbyManager();
+        voiceManager = discord.GetVoiceManager();
+        // Use your client ID from Discord's developer site.
+        discord.SetLogHook(Discord.LogLevel.Debug, (level, message) =>
         {
-            Console.WriteLine($"Recieved invalid message from {(userCache.ContainsKey(userId) ? userCache[userId].Username + "#" + userCache[userId].Discriminator : userId)}.");
+            Console.WriteLine("Log[{0}] {1}", level, message); //I've never seen this print anything?
+        });
+        #endregion
+
+        #region Current User aquisition
+        var userManager = discord.GetUserManager();
+        // GetCurrentUser will error until this fires once.
+        userManager.OnCurrentUserUpdate += () =>
+        {
+            currentUser = userManager.GetCurrentUser();
+            userCache[currentUser.Value.Id] = currentUser.Value;
+            nameToIdCache[currentUser.Value.Username + "#" + currentUser.Value.Discriminator] = currentUser.Value.Id;
+            //broadcast change if in lobby (just use OnMemberUpdate instead)
+        };
+        while (currentUser == null)
+        {
+            discord.RunCallbacks(); //do this until we have the current user.
+            Thread.Sleep(16);
         }
-        else
+        #endregion
+
+        #region Event subscriptions
+
+        //decode and apply message to change another user's volume.
+        //lobbyManager.OnNetworkMessage += (long lobbyId, long userId, byte channel, byte[] data) =>
+        //{
+        //    const int totalExpectedLength = ((32 + 5) + /*(32 + 5) +*/ (3)); //1st user + 2nd user + vol level
+        //    if (data.Length != totalExpectedLength * 2)
+        //    {
+        //        Console.WriteLine($"Recieved invalid message from {(userCache.ContainsKey(userId) ? userCache[userId].Username + "#" + userCache[userId].Discriminator : userId)}.");
+        //    }
+        //    else
+        //    {
+        //        //Console.WriteLine("Received vol message");
+        //        messageQueue.Enqueue(() =>
+        //        {
+        //            lock (lockKey)
+        //            {
+        //                if (proxMode)
+        //                {
+        //                    //update volumes.
+        //                    string raw = Encoding.Unicode.GetString(data);
+        //                    //string perspUser = raw.Substring(0, (32 + 5) * 2); //(max usrname len + # + discrim) * 2 bytes per char
+        //                    //if (perspUser == currentUser.Value.Username + "#" + currentUser.Value.Discriminator)
+        //                    {
+        //                        string targetUser = raw.Substring(0/*((32 + 5) * 2) + 1*/, (32 + 5)).Trim();
+        //                        string vol = raw.Substring(totalExpectedLength - 6, 6).Trim();
+        //                        if (string.IsNullOrEmpty(vol))
+        //                        {
+        //                            //default volume for this user.
+        //                            voiceManager.SetLocalVolume(userCache[nameToIdCache[targetUser]].Id, userPrefVolumes[userCache[nameToIdCache[targetUser]].Id]);
+        //                        }
+        //                        else
+        //                        {
+        //                            byte bvol = byte.Parse(vol);
+        //                            float fvol = (bvol / 100f);
+        //                            byte finalVolume = (byte)(fvol * userPrefVolumes[userCache[nameToIdCache[targetUser]].Id]);
+        //                            voiceManager.SetLocalVolume(userCache[nameToIdCache[targetUser]].Id, finalVolume);
+        //                        }
+        //                    }
+        //                }
+        //            }
+        //        });
+        //    }
+        //};
+
+        lobbyManager.OnMemberConnect += (long lobbyId, long userId) =>
         {
-            //Console.WriteLine("Received vol message");
-            messageQueue.Enqueue(() =>
+            userManager.GetUser(userId, (Result res, ref User user) =>
+            {
+                if (res != Result.Ok)
+                {
+                    Console.WriteLine("GetUser failed in OnMemberConnect");
+                    return;
+                }
+                userCache[userId] = user;
+                string userName = user.Username + "#" + user.Discriminator;
+                nameToIdCache[userName] = user.Id;
+                byte? vol = Settings.Instance.GetUserVolumePreference(userName);
+                if (vol != null)
+                {
+                    userPrefVolumes[userId] = vol.Value;
+                }
+                else
+                {
+                    userPrefVolumes[userId] = defaultVol;
+                    Settings.Instance.SetUserVolumePreference(userName, defaultVol);
+                }
+                voiceManager.SetLocalVolume(userId, userPrefVolumes[userId]);
+            });
+        };
+
+        lobbyManager.OnMemberDisconnect += (long lobbyId, long userId) =>
+        {
+            string userName = userCache[userId].Username + "#" + userCache[userId].Discriminator;
+            Settings.Instance.SetUserVolumePreference(userName, userPrefVolumes[userId]);
+            nameToIdCache.Remove(userName);
+            userCache.Remove(userId);
+            userPrefVolumes.Remove(userId);
+        };
+    #endregion
+
+        #region Callback loop
+        // run callback loop
+        try
+        {
+            System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
+            sw.Start();
+            while (true)
             {
                 lock (lockKey)
                 {
-                    if (proxMode)
+                    try
                     {
-                        //update volumes.
-                        string raw = Encoding.Unicode.GetString(data);
-                        //string perspUser = raw.Substring(0, (32 + 5) * 2); //(max usrname len + # + discrim) * 2 bytes per char
-                        //if (perspUser == currentUser.Value.Username + "#" + currentUser.Value.Discriminator)
+                        while (messageQueue.Count > 0)
                         {
-                            string targetUser = raw.Substring(0/*((32 + 5) * 2) + 1*/, (32 + 5)).Trim();
-                            string vol = raw.Substring(totalExpectedLength - 6, 6).Trim();
-                            if (string.IsNullOrEmpty(vol))
-                            {
-                                //default volume for this user.
-                                voiceManager.SetLocalVolume(userCache[nameToIdCache[targetUser]].Id, userPrefVolumes[userCache[nameToIdCache[targetUser]].Id]);
-                            }
-                            else
-                            {
-                                byte bvol = byte.Parse(vol);
-                                float fvol = (bvol / 100f);
-                                byte finalVolume = (byte)(fvol * userPrefVolumes[userCache[nameToIdCache[targetUser]].Id]);
-                                voiceManager.SetLocalVolume(userCache[nameToIdCache[targetUser]].Id, finalVolume);
-                            }
+                            messageQueue.Dequeue()();
                         }
                     }
-                }
-            });
-        }
-    };
-
-    lobbyManager.OnMemberConnect += (long lobbyId, long userId) =>
-    {
-        userManager.GetUser(userId, (Result res, ref User user) =>
-        {
-            if (res != Result.Ok)
-            {
-                Console.WriteLine("GetUser failed in OnMemberConnect");
-                return;
-            }
-            userCache[userId] = user;
-            nameToIdCache[user.Username + "#" + user.Discriminator] = user.Id;
-            userPrefVolumes[userId] = defaultVol;
-            voiceManager.SetLocalVolume(userId, defaultVol);
-        });
-    };
-
-    lobbyManager.OnMemberDisconnect += (long lobbyId, long userId) =>
-    {
-        nameToIdCache.Remove(userCache[userId].Username + "#" + userCache[userId].Discriminator);
-        userCache.Remove(userId);
-        userPrefVolumes.Remove(userId);
-    };
-    #endregion
-
-    #region Callback loop
-    // run callback loop
-    try
-    {
-        System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
-        sw.Start();
-        while (true)
-        {
-            lock (lockKey)
-            {
-                try
-                {
-                    while (messageQueue.Count > 0)
+                    catch (Exception ex)
                     {
-                        messageQueue.Dequeue()();
+                        Console.WriteLine($"Issue in message loop: {ex.ToString()}");
                     }
                 }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Issue in message loop: {ex.ToString()}");
-                }
+                discord.RunCallbacks();
+                //lobbyManager.FlushNetwork();
+                while (sw.ElapsedMilliseconds < 16) { }
+                sw.Restart(); //1000 / 16 = ~60 times a second (not including the time it takes to do the callbacks
+                              //themselves e.g. if callbacks take ~4ms, then it's only 50 times a second.
             }
-            discord.RunCallbacks();
-            lobbyManager.FlushNetwork();
-            while (sw.ElapsedMilliseconds < 16) { }
-            sw.Restart(); //1000 / 16 = ~60 times a second (not including the time it takes to do the callbacks
-                          //themselves e.g. if callbacks take ~4ms, then it's only 50 times a second.
         }
-    }
-    finally
-    {
-        discord.Dispose();
-    }
-    #endregion
-});
+        finally
+        {
+            discord.Dispose();
+        }
+        #endregion
+    });
+    sema.Wait();
+}
+
+
 
 //TODO: ADD KEYBINDS
 
@@ -169,6 +197,8 @@ Task discordTask = Task.Run(() =>
 //TODO: ADD LOG FILE FEATURE (something to do with the discord log too?)
 
 #region Command Registry
+//TODO: MAKE ALL OF THESE THAT ARE CALLED BY THE GUI RETURN MEANINGFUL INFO IMMEDIATELY INSTEAD OF LATER IN A WRITELINE
+
 CommandHandler.RegisterCommandAliases(args =>
 {
     if (args.Length != 0)
@@ -415,6 +445,33 @@ CommandHandler.RegisterCommandAliases(args =>
 
 CommandHandler.RegisterCommandAliases(args =>
 {
+    if (args.Length < 1)
+    {
+        return "Usage: joinserver <optional: ipv4 address>";
+    }
+    else if (args.Length == 1)
+    {
+        if (IPAddress.TryParse(args[0], out IPAddress? ip))
+        {
+            Settings.Instance.ServerIP = ip.ToString();
+        }
+        else
+        {
+            return "Usage: joinserver <optional: ipv4 address> (make sure the ipv4 address is properly formatted.)";
+        }
+    }
+    IPEndPoint ep = new IPEndPoint(IPAddress.Parse(Settings.Instance.ServerIP!), Constants.pvcPort);
+    serverSocket.Bind(ep);
+
+}, "joinserver", "js");
+
+CommandHandler.RegisterCommandAliases(args =>
+{
+
+}, "leaveserver", "ls");
+
+CommandHandler.RegisterCommandAliases(args =>
+{
     if (args.Length != 2)
     {
         return "Usage: joinlobby <lobby id> <lobby secret>";
@@ -544,13 +601,23 @@ CommandHandler.RegisterCommandAliases(args =>
 
 CommandHandler.RegisterCommandAliases(args =>
 {
-    if (args.Length != 0)
+    if (args.Length != 1)
     {
-        return "Usage: proxon (No arguments.)";
+        return "Usage: voiceprox <on|off>";
     }
     else
     {
-        proxMode = true;
+        switch (args[0])
+        {
+            case "on":
+                proxMode = true;
+                break;
+            case "off":
+                proxMode = false;
+                break;
+            default:
+                return "Usage: voiceprox <on|off>";
+        }
         lock (lockKey) //lock for enqueue
         {
             messageQueue.Enqueue(() =>
@@ -560,7 +627,7 @@ CommandHandler.RegisterCommandAliases(args =>
                 {
                     if (userId != currentUser.Value.Id)
                     {
-                        voiceManager.SetLocalVolume(userId, 0);
+                        voiceManager.SetLocalVolume(userId, proxMode ? (byte)0 : userPrefVolumes[userId]);
                     }
                 }
                 Console.WriteLine($"Successfully enabled voice proximity.");
@@ -568,35 +635,7 @@ CommandHandler.RegisterCommandAliases(args =>
         }
         return "";
     }
-}, "proxon", "pon");
-
-CommandHandler.RegisterCommandAliases(args =>
-{
-    if (args.Length != 0)
-    {
-        return "Usage: proxoff (No arguments.)";
-    }
-    else
-    {
-        proxMode = false;
-        lock (lockKey) //lock for enqueue
-        {
-            messageQueue.Enqueue(() =>
-            {
-                //lock for critical section handled around the dequeue in the discord loop
-                foreach (var userId in userCache.Keys)
-                {
-                    if (userId != currentUser.Value.Id)
-                    {
-                        voiceManager.SetLocalVolume(userId, userPrefVolumes[userId]);
-                    }
-                }
-                Console.WriteLine($"Successfully disabled voice proximity.");
-            });
-        }
-        return "";
-    }
-}, "proxoff", "poff");
+}, "voiceprox", "vp");
 
 CommandHandler.RegisterCommandAliases(args =>
 {
@@ -707,9 +746,7 @@ joinlobby, jl <lobby id> <lobby secret> - joins your client to a voice lobby for
 
 leavelobby, ll - leaves the lobby your in (if you aren't in a lobby, this does nothing)
 
-proxon, pon - enables voice proximity, this will mute all other user until proximity data arrives
-
-proxoff, poff - disables voice proximity, this will restore all users to their pre-proximity chat volumes
+voiceprox, vp <on|off> - enables/disables voice proximity, enabling will mute all other user until proximity data arrives, disabling will restore all users to their pre-proximity chat volumes
 
 startlobby - [TESTING ONLY] starts a voice lobby.
 
@@ -718,6 +755,16 @@ help, h - shows this helpful command list
         return helpInfo;
     }
 }, "help", "h");
+
+
+#region Visual API
+//these functions are called only by winforms, not intended to be called by the user.
+
+CommandHandler.RegisterCommandAliases(args =>
+{
+    return Settings.Instance.IngameName != null && Settings.Instance.ServerIP != null ? "true" : "false";
+}, "***haveRequisiteConnectionData");
+#endregion
 
 //testing purposes only
 CommandHandler.RegisterCommandAliases(args =>
@@ -763,6 +810,24 @@ CommandHandler.RegisterCommandAliases(args =>
     }
 }, "startlobby");
 #endregion
+
+void UnbindSocket(ref Socket s)
+{
+    if (s.IsBound)
+    {
+        if (s.Connected)
+        {
+            try
+            {
+                byte[] json = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new PVCDisconnectPacket() { IntendToRejoin = false });
+                s.Send(json);
+            }
+            catch { }
+        }
+        s.Dispose();
+    }
+    s = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp) { Blocking = false, NoDelay = true };
+}
 
 #region Command loop
 Console.WriteLine("Loading...");
