@@ -9,6 +9,13 @@ using System.Net.Http.Headers;
 namespace Server;
 
 public class DiscordBot {
+    static DiscordBot()
+    {
+        Instance = new DiscordBot();
+    }
+
+    public static DiscordBot Instance { get; private set; }
+
     private DiscordClient? DiscordClient;
     private string? Token;
     private Settings.DiscordTable Config => Settings.Instance.Discord;
@@ -31,7 +38,7 @@ public class DiscordBot {
     //private Discord.User? currentUser = null;
     //#endregion
 
-    public DiscordBot() {
+    private DiscordBot() {
         Token = Config.Token;
         Logger.AddLogHandler(Log);
         webClient.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", "Bot " + Constants.botToken);
@@ -162,7 +169,8 @@ public class DiscordBot {
                         Type = (Discord.LobbyType)int.Parse(j["type"].ToString()),
                         Secret = j["secret"].ToString()
                     };
-                    VoiceProxServer.Instance.SendAllLobbyPacket(new PVCLobbyPacket() { LobbyId = pvcLobby.Value.Id, Secret = pvcLobby.Value.Secret });
+                    //send lobby packets to connected vcp clients so they can join the voice lobby without manually entering in the info
+                    //VoiceProxServer.Instance.SendAllLobbyPacket(new PVCLobbyPacket() { LobbyId = pvcLobby.Value.Id, Secret = pvcLobby.Value.Secret });
                 }
                 catch (Exception ex)
                 {
@@ -220,9 +228,20 @@ public class DiscordBot {
         }
     }
 
+    public (long id, string secret)? GetLobbyInfo()
+    {
+        lock (lockKey)
+        {
+            if (pvcLobby != null)
+                return (pvcLobby.Value.Id, pvcLobby.Value.Secret);
+            else
+                return null;
+        }
+    }
+
     public async Task Run() {
         ClosePVCLobbyIfOpen();
-        OpenPVCLobby();
+        OpenPVCLobby(); //TODO: only do this when a client requests to connect. (empty lobbies get gcd in 15 seconds)
 
 
         Token = Config.Token;

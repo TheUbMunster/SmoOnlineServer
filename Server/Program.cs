@@ -7,19 +7,19 @@ using Shared;
 using Shared.Packet.Packets;
 using Timer = System.Timers.Timer;
 
-Server.Server server = new Server.Server();
-HashSet<int> shineBag = new HashSet<int>();
 
 bool proxChat = false; //off by default.
 Dictionary<Client, (Vector3 pos, byte? scen, string? stage)> clientPositionCorrelate = new Dictionary<Client, (Vector3, byte?, string?)>();
 Dictionary<Client, Dictionary<Client, float>> playerVolumes = new Dictionary<Client, Dictionary<Client, float>>(); //volume [0f : 0% - 1f : 100%]
 Dictionary<string, string> igToDiscord = new Dictionary<string, string>(); //ingame -> discord
 
+Server.Server server = new Server.Server();
+HashSet<int> shineBag = new HashSet<int>();
+
 CancellationTokenSource cts = new CancellationTokenSource();
 Task listenTask = server.Listen(cts.Token);
 Logger consoleLogger = new Logger("Console");
-DiscordBot bot = new DiscordBot();
-await bot.Run();
+await DiscordBot.Instance.Run();
 
 server.ClientJoined += (c, _) =>
 {
@@ -228,7 +228,7 @@ void UpdateProxChatDataForPlayer(Client c, (Vector3 playerPos, byte? scen, strin
         return v < a ? 0 : (v > b ? 1 : (v - a) / (b - a)); //see "linear interpolation"
     }
 
-    PVCDataPacket mainClient = new PVCDataPacket() { Tick = PVCDataPacket.Ticker++ };
+    PVCMultiDataPacket mainClient = new PVCMultiDataPacket();
     //O(playerCount)
     var c1 = clientPositionCorrelate[c];
     foreach (var c2 in clientPositionCorrelate)
@@ -259,56 +259,51 @@ void UpdateProxChatDataForPlayer(Client c, (Vector3 playerPos, byte? scen, strin
         {
             mainClient.Volumes[igToDiscord[c2.Key.Name]] = proxChat ? (byte)(100 * playerVolumes[c][c2.Key]) : null;
             //bot.ChangeVolume(igToDiscord[c.Name], igToDiscord[c2.Key.Name], proxChat ? playerVolumes[c][c2.Key] : null);
-            var packet = new PVCDataPacket() { Tick = PVCDataPacket.Ticker++ };
-            packet.Volumes[igToDiscord[c.Name]] = proxChat ? (byte)(100 * playerVolumes[c2.Key][c]) : null;
-            VoiceProxServer.Instance.SendDataPacket(packet, igToDiscord[c2.Key.Name]);
+            var packet = new PVCSingleDataPacket();
+            packet.Volume = proxChat ? (byte)(100 * playerVolumes[c2.Key][c]) : null;
+            packet.DiscordUsername = igToDiscord[c.Name];
+
+            //send "packet"
+
+            VoiceProxServer.Instance.SendPacket(packet, igToDiscord[c2.Key.Name]);
             //bot.ChangeVolume(igToDiscord[c2.Key.Name], igToDiscord[c.Name], proxChat ? playerVolumes[c2.Key][c] : null);
         }
     }
-    VoiceProxServer.Instance.SendDataPacket(mainClient, igToDiscord[c.Name]);
+    //send "mainClient"
+
+    VoiceProxServer.Instance.SendPacket(mainClient, igToDiscord[c.Name]);
 }
 
-VoiceProxServer.Instance.onMessageRecieved += data =>
-{
-    PVCClientHandshakePacket? handshake = System.Text.Json.JsonSerializer.Deserialize<PVCClientHandshakePacket>(new ReadOnlySpan<byte>(data));
-    if (handshake != null)
-    {
-        if (handshake.IngameUsername != null && handshake.DiscordUsername != null)
-        {
-            igToDiscord[handshake.IngameUsername] = handshake.DiscordUsername;
-        }
-        else
-            consoleLogger.Warn("PVC recieved handshake, but could not correlate ig to discord as both were not present.");
-    }
-};
 
+
+#region Command registry
 CommandHandler.RegisterCommand("help", _ => $"Valid commands: {string.Join(", ", CommandHandler.Handlers.Keys)}");
 
-//CommandHandler.RegisterCommand("botlobby", args =>
+//CommandHandler.RegisterCommandAliases(args =>
 //{
-//    //Settings.Instance.Server.MaxPlayers
-//    //Settings.Instance.Discord. //????
-//    if (args.Length != 1)
+//    if (args.Length != 0)
 //    {
-//        return "Usage: botlobby <make|close>";
+//        return "Usage: help (no arguments)";
 //    }
 //    else
-//    {
-//        switch(args[0])
-//        {
-//            case "make":
-//                //create the lobby
-//                throw new NotImplementedException();
-//                break;
-//            case "close":
-//                //close the lobby
-//                throw new NotImplementedException();
-//                break;
-//            default:
-//                return "Usage: botlobby <make|close>";
-//        }
+//    {   //dont linewrap this string to keep horizontal length from exceeding 120 (newlines are literal)
+//        string helpInfo = @"
+//";
+//        return helpInfo;
 //    }
-//});
+//}, "help", "h");
+
+CommandHandler.RegisterCommandAliases(args => 
+{
+    if (args.Length != 0)
+    {
+        return "Usage: pvcip (no arguments.)";
+    }
+    else
+    {
+        return VoiceProxServer.Instance.GetServerIP() ?? "(The server does not appear to be running.)";
+    }
+}, "pvcip");
 
 CommandHandler.RegisterCommand("vcpcorrlist", args =>
 {
@@ -663,7 +658,7 @@ CommandHandler.RegisterCommand("maxplayers", args =>
     if (!ushort.TryParse(args[0], out ushort maxPlayers)) return optionUsage;
     Settings.Instance.Server.MaxPlayers = maxPlayers;
     Settings.SaveSettings();
-    bot.ChangePVCLobbySize(maxPlayers);
+    DiscordBot.Instance.ChangePVCLobbySize(maxPlayers);
     foreach (Client client in server.Clients)
         client.Dispose(); // reconnect all players
     return $"Saved and set max players to {maxPlayers}";
@@ -779,6 +774,14 @@ CommandHandler.RegisterCommand("loadsettings", _ =>
     return "Loaded settings.json";
 });
 
+CommandHandler.RegisterCommandAliases(_ =>
+{
+    cts.Cancel();
+    return "Shutting down";
+}, "exit", "quit", "q");
+#endregion
+
+#region Event Subscription
 Console.CancelKeyPress += (_, e) =>
 {
     e.Cancel = true;
@@ -786,12 +789,27 @@ Console.CancelKeyPress += (_, e) =>
     cts.Cancel();
 };
 
-CommandHandler.RegisterCommandAliases(_ =>
-{
-    cts.Cancel();
-    return "Shutting down";
-}, "exit", "quit", "q");
+//VoiceProxServer.Instance.onMessageRecieved += data =>
+//{
+//    PVCClientHandshakePacket? handshake = System.Text.Json.JsonSerializer.Deserialize<PVCClientHandshakePacket>(new ReadOnlySpan<byte>(data));
+//    if (handshake != null)
+//    {
+//        if (handshake.IngameUsername != null && handshake.DiscordUsername != null)
+//        {
+//            igToDiscord[handshake.IngameUsername] = handshake.DiscordUsername;
+//        }
+//        else
+//            consoleLogger.Warn("PVC recieved handshake, but could not correlate ig to discord as both were not present.");
+//    }
+//};
 
+VoiceProxServer.Instance.OnClientConnect += (discord, ingame) =>
+{
+    igToDiscord[ingame] = discord; //TODO: FIX RACE CONDITION Task.Run(Loop) from vps VS Main thread
+};
+#endregion
+
+#region Input loop
 Task.Run(() =>
 {
     consoleLogger.Info("Run help command for valid commands.");
@@ -807,5 +825,6 @@ Task.Run(() =>
         }
     }
 });
+#endregion
 
 await listenTask;

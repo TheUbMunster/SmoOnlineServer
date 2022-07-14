@@ -52,7 +52,7 @@ public class Settings
             SaveSettings();
         }
     }
-    private Dictionary<string, byte> userVolumes;
+    private Dictionary<string, byte> userVolumes = new Dictionary<string, byte>();
 
     public void SetUserVolumePreference(string discordName, byte volume)
     {
