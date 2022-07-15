@@ -16,7 +16,7 @@ public class Settings
             string text = File.ReadAllText("settings.json");
             try
             {
-                Instance = JsonSerializer.Deserialize<Settings>(text/*, new JsonSerializerOptions() {  }*/) ?? new Settings();
+                Instance = JsonSerializer.Deserialize<Settings>(text) ?? new Settings();
                 Console.WriteLine("Loaded settings from json");
             }
             catch (Exception e)
@@ -32,43 +32,22 @@ public class Settings
         }
     }
 
-    private string? serverIP = null;
-    public string? ServerIP
-    {
-        get => serverIP;
-        set
-        {
-            serverIP = value;
-            SaveSettings();
-        }
-    }
 
     private ushort? serverPort;
-    public ushort ServerPort 
+    public ushort? ServerPort 
     {
         get
         {
             return serverPort ??= 12000;
         }
-        set
-        {
-            serverPort = value;
-            SaveSettings();
-        }
+        set => serverPort = value;
     }
 
-    private string? ingameName = null;
-    public string? IngameName
-    {
-        get => ingameName;
-        set
-        {
-            ingameName = value;
-            SaveSettings();
-        }
-    }
+    public string? ServerIP { get; set; }
+    public string? IngameName { get; set; }
     private Dictionary<string, byte> userVolumes = new Dictionary<string, byte>();
 
+    #region Getters/Setters
     public void SetUserVolumePreference(string discordName, byte volume)
     {
         userVolumes[discordName] = volume;
@@ -81,6 +60,40 @@ public class Settings
             return userVolumes[discordName];
         else return null;
     }
+
+    public void SetPort(ushort? port)
+    {
+        ServerPort = port;
+        SaveSettings();
+    }
+
+    public ushort? GetPort()
+    {
+        return ServerPort;
+    }
+
+    public void SetIP(string? ip)
+    {
+        ServerIP = ip;
+        SaveSettings();
+    }
+
+    public string? GetIP()
+    {
+        return ServerIP;
+    }
+
+    public void SetIGName(string? igName)
+    {
+        IngameName = igName;
+        SaveSettings();
+    }
+
+    public string? GetIGName()
+    {
+        return IngameName;
+    }
+    #endregion
 
     private void SaveSettings()
     {

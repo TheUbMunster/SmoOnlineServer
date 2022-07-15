@@ -79,6 +79,7 @@ class Program
         Discord.Discord discord = null!;
         LobbyManager lobbyManager = null!;
         VoiceManager voiceManager = null!;
+        ImageManager imageManager = null!;
 
         Logger pvcLogger = new Logger("ProxVoiceChat Client");
 
@@ -105,6 +106,7 @@ class Program
             discord = new Discord.Discord(Constants.clientId, (UInt64)Discord.CreateFlags.Default);
             lobbyManager = discord.GetLobbyManager();
             voiceManager = discord.GetVoiceManager();
+            imageManager = discord.GetImageManager();
             // Use your client ID from Discord's developer site.
             discord.SetLogHook(Discord.LogLevel.Debug, (level, message) =>
             {
@@ -724,7 +726,7 @@ class Program
             {
                 return "Usage: joinserver <ipaddress> (You don't have a server IP address saved in settings.json, so you must manually specify one.)";
             }
-            Address adr = new Address() { Port = Settings.Instance.ServerPort };
+            Address adr = new Address() { Port = Settings.Instance.ServerPort!.Value };
             adr.SetHost(Settings.Instance.ServerIP);
             client?.Dispose();
             client = new Host();
@@ -905,6 +907,39 @@ help, h - shows this helpful command list
             return Settings.Instance.IngameName != null && Settings.Instance.ServerIP != null ? "true" : "false";
         }, "***haveRequisiteConnectionData");
         #endregion
+
+        void GetUserImage(long userId)
+        {
+            ImageHandle imgH = new ImageHandle()
+            {
+                Id = userId,
+                Size = 512
+            };
+            imageManager.Fetch(imgH, false, (result, returnedHandle) =>
+            {
+                if (result != Result.Ok)
+                {
+                    pvcLogger.Warn($"Failed to get the profile picture for user: {userId}");
+                    return;
+                }
+                else
+                {
+                    try
+                    {
+                        byte[] data = imageManager.GetData(returnedHandle);
+                        using (MemoryStream ms = new MemoryStream(data))
+                        {
+                            //Image img = Image.FromStream(ms);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        pvcLogger.Warn($"Issue deserializing image for user: {userId}. Error: {ex.ToString()}");
+                        //return null
+                    }
+                }
+            });
+        }
 
         //testing purposes only
         //CommandHandler.RegisterCommandAliases(args =>
