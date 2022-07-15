@@ -16,7 +16,7 @@ public class Settings
             string text = File.ReadAllText("settings.json");
             try
             {
-                Instance = JsonSerializer.Deserialize<Settings>(text) ?? new Settings();
+                Instance = JsonSerializer.Deserialize<Settings>(text/*, new JsonSerializerOptions() {  }*/) ?? new Settings();
                 Console.WriteLine("Loaded settings from json");
             }
             catch (Exception e)
@@ -42,6 +42,21 @@ public class Settings
             SaveSettings();
         }
     }
+
+    private ushort? serverPort;
+    public ushort ServerPort 
+    {
+        get
+        {
+            return serverPort ??= 12000;
+        }
+        set
+        {
+            serverPort = value;
+            SaveSettings();
+        }
+    }
+
     private string? ingameName = null;
     public string? IngameName
     {

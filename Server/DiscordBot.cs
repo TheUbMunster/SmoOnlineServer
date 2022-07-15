@@ -28,10 +28,10 @@ public class DiscordBot {
     //private Dictionary<string, long> discUserToId = new Dictionary<string, long>();
     //private Dictionary<long, Discord.User> discUserTable = new Dictionary<long, Discord.User>();
     private Queue<Action> messageQueue = new Queue<Action>();
-    private object lockKey = new object();
     //private Discord.Discord? pvcDiscord = null;
     private HttpClient webClient = new HttpClient();
     private Discord.Lobby? pvcLobby = null;
+    private object lobbyLock = new object();
     //private Discord.LobbyManager? lobbyManager = null;
     //private Discord.VoiceManager? voiceManager = null;
     //private Discord.UserManager? userManager = null;
@@ -41,7 +41,6 @@ public class DiscordBot {
     private DiscordBot() {
         Token = Config.Token;
         Logger.AddLogHandler(Log);
-        webClient.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", "Bot " + Constants.botToken);
         CommandHandler.RegisterCommand("dscrestart", _ => {
             // this should be async'ed but i'm lazy
             Reconnecting = true;
@@ -49,10 +48,6 @@ public class DiscordBot {
             return "Restarting Discord bot";
         });
 
-        CommandHandler.RegisterCommand("jc", _ =>
-        {
-            return $"jl {pvcLobby.Value.Id} {pvcLobby.Value.Secret}";
-        });
         //CommandHandler.RegisterCommand("lll", _ =>
         //{
         //    if (pvcLobby != null)
@@ -70,38 +65,39 @@ public class DiscordBot {
         //});
 
         if (Config.Token == null) return;
+        webClient.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", "Bot " + Config.Token);
         Settings.LoadHandler += SettingsLoadHandler;
 
         #region Discord voice lobby stuff
-        Task discordTask = Task.Run(() =>
-        {
-            try
-            {
-                System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
-                sw.Start();
-                while (true)
-                {
-                    lock (lockKey)
-                    {
-                        while (messageQueue.Count > 0)
-                        {
-                            messageQueue.Dequeue()();
-                        }
-                    }
-                    //pvcDiscord.RunCallbacks();
-                    //lobbyManager.FlushNetwork();
+        //Task discordTask = Task.Run(() =>
+        //{
+        //    try
+        //    {
+        //        System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
+        //        sw.Start();
+        //        while (true)
+        //        {
+        //            lock (lockKey)
+        //            {
+        //                while (messageQueue.Count > 0)
+        //                {
+        //                    messageQueue.Dequeue()();
+        //                }
+        //            }
+        //            //pvcDiscord.RunCallbacks();
+        //            //lobbyManager.FlushNetwork();
 
-                    //send off pending messages to voice clients?
-                    while (sw.ElapsedMilliseconds < 16) { } //busy wait because all forms of "sleep" have poor accuracy (granularity of like 10ms, caused by the scheduler event cadence)
-                    sw.Restart(); //1000 / 16 = ~60 times a second (not including the time it takes to do the callbacks
-                                  //themselves e.g. if callbacks take ~4ms, then it's only 50 times a second.
-                }
-            }
-            catch (Exception e)
-            {
-                Logger.Error($"Issue in message loop: {e.ToString()}");
-            }
-        });
+        //            //send off pending messages to voice clients?
+        //            while (sw.ElapsedMilliseconds < 16) { } //busy wait because all forms of "sleep" have poor accuracy (granularity of like 10ms, caused by the scheduler event cadence)
+        //            sw.Restart(); //1000 / 16 = ~60 times a second (not including the time it takes to do the callbacks
+        //                          //themselves e.g. if callbacks take ~4ms, then it's only 50 times a second.
+        //        }
+        //    }
+        //    catch (Exception e)
+        //    {
+        //        Logger.Error($"Issue in message loop: {e.ToString()}");
+        //    }
+        //});
         #endregion
     }
 
@@ -140,97 +136,86 @@ public class DiscordBot {
         }
     }
 
-    private void OpenPVCLobby()
+    public async Task<bool> OpenPVCLobby()
     {
-        lock (lockKey)
+        bool success = false;
+        try
         {
-            messageQueue.Enqueue(async () =>
-            {
-                try
-                {
-                    var payload = new
-                    {
-                        application_id = Constants.clientId.ToString(),
-                        type = ((int)Discord.LobbyType.Private).ToString(),
-                        capacity = (Settings.Instance.Server.MaxPlayers + 1).ToString()
-                    };
-                    HttpContent content = new StringContent(Newtonsoft.Json.JsonConvert.SerializeObject(payload), System.Text.Encoding.UTF8, "application/json");
-                    content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
-                    Logger.Info("Attempting to open pvc lobby");
-                    var response = await webClient.PostAsync("https://discord.com/api/v10/lobbies", content);
-                    string json = await response.Content.ReadAsStringAsync();
-                    Newtonsoft.Json.Linq.JObject j = Newtonsoft.Json.Linq.JObject.Parse(json);
-                    pvcLobby = new Discord.Lobby()
-                    {
-                        Capacity = uint.Parse(j["capacity"].ToString()),
-                        Id = long.Parse(j["id"].ToString()),
-                        Locked = bool.Parse(j["locked"].ToString()),
-                        OwnerId = long.Parse(j["owner_id"].ToString()),
-                        Type = (Discord.LobbyType)int.Parse(j["type"].ToString()),
-                        Secret = j["secret"].ToString()
-                    };
-                    //send lobby packets to connected vcp clients so they can join the voice lobby without manually entering in the info
-                    //VoiceProxServer.Instance.SendAllLobbyPacket(new PVCLobbyPacket() { LobbyId = pvcLobby.Value.Id, Secret = pvcLobby.Value.Secret });
-                }
-                catch (Exception ex)
-                {
-                    Logger.Error(ex.ToString());
-                }
-            });
-        }
-    }
-
-    private void ClosePVCLobbyIfOpen()
-    {
-        lock (lockKey)
-        {
-            messageQueue.Enqueue(async () =>
+            lock (lobbyLock)
             {
                 if (pvcLobby != null)
                 {
-                    try
-                    {
-                        var response = await webClient.DeleteAsync($"https://discord.com/api/v10/lobbies/{pvcLobby.Value.Id}");
-                    }
-                    catch (Exception ex)
-                    {
-                        Logger.Error(ex.ToString());
-                    }
+                    //fire and forget, if it fails it is garbage collected in 15s anyways
+
+                    //ADD ALL CLIENTS TO PENDING LIST
+                    webClient.DeleteAsync($"https://discord.com/api/v10/lobbies/{pvcLobby.Value.Id}");
                 }
-            });
+            }
+            var payload = new
+            {
+                application_id = Constants.clientId.ToString(),
+                type = ((int)Discord.LobbyType.Private).ToString(),
+                capacity = (Settings.Instance.Server.MaxPlayers + 1).ToString()
+            };
+            HttpContent content = new StringContent(Newtonsoft.Json.JsonConvert.SerializeObject(payload), System.Text.Encoding.UTF8, "application/json");
+            content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+            Logger.Info("Attempting to open PVC lobby");
+            var response = await webClient.PostAsync("https://discord.com/api/v10/lobbies", content);
+            string json = await response.Content.ReadAsStringAsync();
+            Newtonsoft.Json.Linq.JObject j = Newtonsoft.Json.Linq.JObject.Parse(json);
+            lock (lobbyLock)
+            {
+                pvcLobby = new Discord.Lobby()
+                {
+                    Capacity = uint.Parse(j["capacity"].ToString()),
+                    Id = long.Parse(j["id"].ToString()),
+                    Locked = bool.Parse(j["locked"].ToString()),
+                    OwnerId = long.Parse(j["owner_id"].ToString()),
+                    Type = (Discord.LobbyType)int.Parse(j["type"].ToString()),
+                    Secret = j["secret"].ToString()
+                };
+                Logger.Info("PVC lobby open.");
+            }
+            success = true;
+            //send lobby packets to connected vcp clients so they can join the voice lobby without manually entering in the info
+            //VoiceProxServer.Instance.SendAllLobbyPacket(new PVCLobbyPacket() { LobbyId = pvcLobby.Value.Id, Secret = pvcLobby.Value.Secret });
         }
+        catch (Exception ex)
+        {
+            Logger.Error(ex.ToString());
+        }
+        return success;
     }
 
-    public void ChangePVCLobbySize(int newSize)
+    public async Task<bool> ChangePVCLobbySize(int newSize)
     {
-        lock (lockKey)
+        bool success = false;
+        try
         {
-            messageQueue.Enqueue(async () =>
+            var payload = new
             {
-                if (pvcLobby != null)
-                {
-                    try
-                    {
-                        var payload = new
-                        {
-                            capacity = newSize
-                        };
-                        HttpContent content = new StringContent(Newtonsoft.Json.JsonConvert.SerializeObject(payload), System.Text.Encoding.UTF8, "application/json");
-                        content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
-                        var response = await webClient.PatchAsync($"https://discord.com/api/v10/lobbies/{pvcLobby.Value.Id}", content);
-                    }
-                    catch (Exception ex)
-                    {
-                        Logger.Error(ex.ToString());
-                    }
-                }
-            });
+                capacity = newSize
+            };
+            HttpContent content = new StringContent(Newtonsoft.Json.JsonConvert.SerializeObject(payload), System.Text.Encoding.UTF8, "application/json");
+            content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+            long id;
+            lock (lobbyLock)
+            {
+                id = pvcLobby!.Value.Id; //nullderef caught by catch, no need for if
+            }
+            var response = await webClient.PatchAsync($"https://discord.com/api/v10/lobbies/{id}", content);
+            success = true;
         }
+        catch (Exception ex)
+        {
+            Logger.Error(ex.ToString());
+        }
+        return success;
     }
 
     public (long id, string secret)? GetLobbyInfo()
     {
-        lock (lockKey)
+        lock (lobbyLock)
         {
             if (pvcLobby != null)
                 return (pvcLobby.Value.Id, pvcLobby.Value.Secret);
@@ -240,10 +225,6 @@ public class DiscordBot {
     }
 
     public async Task Run() {
-        ClosePVCLobbyIfOpen();
-        OpenPVCLobby(); //TODO: only do this when a client requests to connect. (empty lobbies get gcd in 15 seconds)
-
-
         Token = Config.Token;
         DiscordClient?.Dispose();
         if (Config.Token == null) {

@@ -30,6 +30,11 @@ namespace Server
         private Dictionary<string, Peer> discordToPeer = new Dictionary<string, Peer>();
         private string? ip = null;
 
+        private object messageKey = new object();
+        private Queue<Action> messageQueue = new Queue<Action>();
+
+        private List<Peer> pendingClients = new List<Peer>();
+
         public event Action<string, string>? OnClientConnect; //discord, ingame
         public event Action<string>? OnClientDisconnect; //discord
 
@@ -37,7 +42,7 @@ namespace Server
         {
             Library.Initialize();
             server = new Host();
-            Address adr = new Address() { Port = Constants.pvcPort };
+            Address adr = new Address() { Port = Settings.Instance.Discord.PVCPort };
             IPHostEntry entry = Dns.GetHostEntry(adr.GetHost());
             if (entry.AddressList.Length > 0)
             {
@@ -119,6 +124,22 @@ namespace Server
                         break;
                 }
                 server.Flush();
+
+                //message loop
+                lock (messageKey)
+                {
+                    try
+                    {
+                        while (messageQueue.Count > 0)
+                        {
+                            messageQueue.Dequeue()();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Issue in message loop: {ex.ToString()}");
+                    }
+                }
             }
         }
 
@@ -171,9 +192,18 @@ namespace Server
                                     pvcLogger.Info("Successful client handshake");
                                 }
                                 discordToPeer[handshakePacket.DiscordUsername!] = netEvent.Peer;
-                                var lobbyInfo = DiscordBot.Instance.GetLobbyInfo();
-                                SendPacket(new PVCLobbyPacket() { LobbyId = lobbyInfo!.Value.id, Secret = lobbyInfo!?.secret } ,netEvent.Peer);
                                 OnClientConnect?.Invoke(handshakePacket.DiscordUsername!, handshakePacket.IngameUsername!);
+                                //send the packet only after the lobby is open.
+                                var lobbyInfo = DiscordBot.Instance.GetLobbyInfo();
+                                if (lobbyInfo != null)
+                                {
+                                    SendPacket(new PVCLobbyPacket() { LobbyId = lobbyInfo.Value.id, Secret = lobbyInfo.Value.secret }, netEvent.Peer);
+                                }
+                                else
+                                {
+                                    //add them to pending.
+                                    pendingClients.Add(netEvent.Peer);
+                                }
                             }
                             break;
                         case PVCLobbyPacket lobbyPacket:
@@ -202,6 +232,7 @@ namespace Server
         private void HandleTimeoutEvent(ref Event netEvent)
         {
             pvcLogger.Error($"A client timed out");
+            HandleDisconnectEvent(ref netEvent);
         }
 
         public void SendPacket<T>(T packet, string discordUsername) where T : PVCPacket
@@ -218,19 +249,49 @@ namespace Server
 
         private void SendPacket<T>(T packet, Peer recipient) where T : PVCPacket
         {
-            byte[] data = Protocol.Serialize(packet);
-            Packet pack = default(Packet); //ENet will dispose automatically when sending.
-            pack.Create(data, PacketFlags.Reliable);
-            bool result = recipient.Send(0, ref pack);
-            if (!result)
-            {
-                pvcLogger.Error("Sendpacket failed.");
-            }
+            AddMessageToQueue(() => 
+            { 
+                byte[] data = Protocol.Serialize(packet);
+                Packet pack = default(Packet); //ENet will dispose automatically when sending.
+                pack.Create(data, PacketFlags.Reliable);
+                bool result = recipient.Send(0, ref pack);
+                if (!result)
+                {
+                    pvcLogger.Error("Sendpacket failed.");
+                }
+            });
         }
 
         public string? GetServerIP()
         {
             return ip;
+        }
+
+        public void AddMessageToQueue(Action message)
+        {
+            lock (messageKey)
+            {
+                messageQueue.Enqueue(message);
+            }
+        }
+
+        public void SendLobbyPacketsToPending()
+        {
+            var lobbyInfo = DiscordBot.Instance.GetLobbyInfo();
+            if (lobbyInfo == null)
+                pvcLogger.Error("Lobby was null when trying to connect pending clients.");
+            else
+            {
+                pvcLogger.Info("Sent lobby join info packet to pending clients.");
+                foreach (Peer pending in pendingClients)
+                {
+                    try
+                    {
+                        SendPacket<PVCLobbyPacket>(new PVCLobbyPacket() { LobbyId = lobbyInfo.Value.id, Secret = lobbyInfo.Value.secret }, pending);
+                    } catch { } //they might not still be trying to connect/might have dcd
+                }
+                pendingClients.Clear();
+            }
         }
 
         ~VoiceProxServer()

@@ -189,7 +189,7 @@ class Program
                             Console.WriteLine($"Issue in message loop: {ex.ToString()}");
                         }
 
-                        if (client != null && client.IsSet)
+                        if (client != null && client.IsSet) //what does IsSet mean?
                         {
                             int checkResult = client.CheckEvents(out netEvent);
                             if (checkResult == 0)
@@ -230,6 +230,7 @@ class Program
                                     Console.WriteLine("Invalid netevent type");
                                     break;
                             }
+                            client.Flush();
                         }
                     }
                     discord.RunCallbacks();
@@ -382,11 +383,11 @@ class Program
                                     {
                                         if (res != Result.Ok)
                                         {
-                                            resultMessage.Append("Something went wrong when joining vc.\n");
+                                            resultMessage.Append("Something went wrong when joining vc.");
                                         }
                                         else
                                         {
-                                            resultMessage.Append("Joined vc.\n");
+                                            resultMessage.Append("Joined vc.");
                                         }
                                         pvcLogger.Info(resultMessage.ToString());
                                     });
@@ -723,99 +724,20 @@ class Program
             {
                 return "Usage: joinserver <ipaddress> (You don't have a server IP address saved in settings.json, so you must manually specify one.)";
             }
-            Address adr = new Address() { Port = Constants.pvcPort };
+            Address adr = new Address() { Port = Settings.Instance.ServerPort };
             adr.SetHost(Settings.Instance.ServerIP);
             client?.Dispose();
             client = new Host();
             client.Create();
             client.Connect(adr); //cant send packet until after connected.
             return "Joining server...";
-            #region Old
-            //if (args.Length < 1)
-            //{
-            //    return "Usage: joinserver <optional: ipv4 address>";
-            //}
-            //else if (args.Length == 1)
-            //{
-            //    if (IPAddress.TryParse(args[0], out IPAddress? ip))
-            //    {
-            //        Settings.Instance.ServerIP = ip.ToString();
-            //    }
-            //    else
-            //    {
-            //        return "Usage: joinserver <optional: ipv4 address> (make sure the ipv4 address is properly formatted.)";
-            //    }
-            //}
-            //IPEndPoint ep = new IPEndPoint(IPAddress.Parse(Settings.Instance.ServerIP!), Constants.pvcPort);
-            //if (server != null)
-            //{
-            //    server.GetStream().Write()
-            //}
-            #endregion
         }, "joinserver", "js");
 
-        //CommandHandler.RegisterCommandAliases(args =>
-        //{
-
-        //}, "leaveserver", "ls");
-
-        //CommandHandler.RegisterCommandAliases(args =>
-        //{
-        //    if (args.Length != 2)
-        //    {
-        //        return "Usage: joinlobby <lobby id> <lobby secret>";
-        //    }
-        //    else
-        //    {
-        //        lock (discordLockKey) //lock so we can enqueue
-        //        {
-                    
-        //        }
-        //        return ""; //result message will be printed through the discord loop instead.
-        //    }
-        //}, "joinlobby", "jl");
-
-        //CommandHandler.RegisterCommandAliases(args =>
-        //{
-        //    //clear everything
-        //    if (args.Length != 0)
-        //    {
-        //        return "Usage: leavelobby (no arguments.)";
-        //    }
-        //    else
-        //    {
-        //        lock (discordLockKey)
-        //        {
-        //            messageQueue.Enqueue(() =>
-        //            {
-        //                if (lob != null)
-        //                {
-        //                    lobbyManager.DisconnectLobby(lob.Value.Id, res =>
-        //                    {
-        //                        if (res != Result.Ok)
-        //                        {
-        //                            Console.WriteLine($"Something went wrong with leaving the lobby: {res.ToString()}");
-        //                        }
-        //                        else
-        //                        {
-        //                            Console.WriteLine("You left the lobby");
-        //                            lobbyManager.DisconnectNetwork(lob.Value.Id);
-        //                            userCache.Clear();
-        //                            userPrefVolumes.Clear();
-        //                            nameToIdCache.Clear();
-        //                            lob = null;
-        //                        }
-        //                    });
-        //                }
-        //                else
-        //                {
-        //                    Console.WriteLine("You aren't in a lobby to begin with! (No action was taken.)");
-        //                }
-        //            });
-        //            return "";
-        //        }
-        //    }
-        //}, "leavelobby", "ll");
+        CommandHandler.RegisterCommandAliases(args =>
+        {
+            client?.Dispose(); //there doesn't seem to be an easy better way to do this.
+            return "Disconnected from server.";
+        }, "leaveserver", "ls");
 
         CommandHandler.RegisterCommandAliases(args =>
         {
@@ -985,48 +907,48 @@ help, h - shows this helpful command list
         #endregion
 
         //testing purposes only
-        CommandHandler.RegisterCommandAliases(args =>
-        {
-            if (args.Length != 0)
-            {
-                return "Usage: startlobby (No arguments.)";
-            }
-            else
-            {
-                messageQueue.Enqueue(() =>
-                {
-                    var trans = lobbyManager.GetLobbyCreateTransaction();
-                    trans.SetCapacity(4);
-                    trans.SetType(LobbyType.Private);
-                    lobbyManager.CreateLobby(trans, (Result res, ref Lobby lobby) =>
-                    {
-                        StringBuilder resultMessage = new StringBuilder();
-                        if (res != Result.Ok)
-                        {
-                            Console.WriteLine("Something went wrong when creating the lobby");
-                            return;
-                        }
-                        resultMessage.Append($"ID: {lobby.Id} Secret: {lobby.Secret}");
-                        lobbyManager.ConnectVoice(lobby.Id, x =>
-                        {
-                            if (res != Result.Ok)
-                            {
-                                resultMessage.Append("Something went wrong when joining vc");
-                            }
-                            else
-                            {
-                                resultMessage.Append("Joined vc");
-                            }
-                        });
-                        lobbyManager.ConnectNetwork(lobby.Id);
-                        //lobbyManager.OpenNetworkChannel(lobby.Id, 0, true);
-                        lob = lobby;
-                        Console.WriteLine(resultMessage.ToString());
-                    });
-                });
-                return "";
-            }
-        }, "startlobby");
+        //CommandHandler.RegisterCommandAliases(args =>
+        //{
+        //    if (args.Length != 0)
+        //    {
+        //        return "Usage: startlobby (No arguments.)";
+        //    }
+        //    else
+        //    {
+        //        messageQueue.Enqueue(() =>
+        //        {
+        //            var trans = lobbyManager.GetLobbyCreateTransaction();
+        //            trans.SetCapacity(4);
+        //            trans.SetType(LobbyType.Private);
+        //            lobbyManager.CreateLobby(trans, (Result res, ref Lobby lobby) =>
+        //            {
+        //                StringBuilder resultMessage = new StringBuilder();
+        //                if (res != Result.Ok)
+        //                {
+        //                    Console.WriteLine("Something went wrong when creating the lobby");
+        //                    return;
+        //                }
+        //                resultMessage.Append($"ID: {lobby.Id} Secret: {lobby.Secret}");
+        //                lobbyManager.ConnectVoice(lobby.Id, x =>
+        //                {
+        //                    if (res != Result.Ok)
+        //                    {
+        //                        resultMessage.Append("Something went wrong when joining vc");
+        //                    }
+        //                    else
+        //                    {
+        //                        resultMessage.Append("Joined vc");
+        //                    }
+        //                });
+        //                lobbyManager.ConnectNetwork(lobby.Id);
+        //                //lobbyManager.OpenNetworkChannel(lobby.Id, 0, true);
+        //                lob = lobby;
+        //                Console.WriteLine(resultMessage.ToString());
+        //            });
+        //        });
+        //        return "";
+        //    }
+        //}, "startlobby");
         #endregion
 
         //void UnbindSocket(ref Socket s)
@@ -1048,6 +970,7 @@ help, h - shows this helpful command list
         //}
 
         #region Command loop
+        Console.ForegroundColor = ConsoleColor.White;
         Console.WriteLine("Loading...");
         while (currentUser == null || lobbyManager == null || voiceManager == null)
         {
@@ -1068,207 +991,6 @@ help, h - shows this helpful command list
                 }
             }
         }
-        #endregion
-
-
-
-        #region Old
-        //Lobby? lob = null; //need to lock/unlock this.
-        //bool success = false;
-        //while (!success)
-        //{
-        //    Console.Write("Would you like to make a lobby (0), or join a lobby (1): ");
-        //    string? inp = Console.ReadLine();
-        //    if (inp == null)
-        //    {
-        //        Console.WriteLine("Null input, try again.");
-        //        continue;
-        //    }
-        //    switch (inp.Trim())
-        //    {
-        //        case "0":
-        //            {
-        //                var trans = lobbyManager.GetLobbyCreateTransaction();
-        //                trans.SetCapacity(4);
-        //                trans.SetType(LobbyType.Private);
-        //                lobbyManager.CreateLobby(trans, (Result res, ref Lobby lobby) =>
-        //                {
-        //                    if (res != Result.Ok)
-        //                    {
-        //                        Console.WriteLine("Something went wrong when creating the lobby");
-        //                        return;
-        //                    }
-        //                    Console.WriteLine($"ID: {lobby.Id} Secret: {lobby.Secret}");
-        //                    //should just be you in the lobby
-        //                    //Console.WriteLine($"All users in the lobby: {string.Join(",\n", lobbyManager.GetMemberUsers(lobby.Id).Select(x => x.Username + "#" + x.Discriminator))}");
-        //                    //foreach (User u in lobbyManager.GetMemberUsers(lobby.Id))
-        //                    //{
-        //                    //    userCache[u.Id] = u;
-        //                    //    nameToIdCache[u.Username + "#" + u.Discriminator] = u.Id;
-        //                    //}
-
-        //                    lobbyManager.ConnectVoice(lobby.Id, x =>
-        //                    {
-        //                        if (res != Result.Ok)
-        //                        {
-        //                            Console.WriteLine("Something went wrong when joining vc");
-        //                        }
-        //                        else
-        //                        {
-        //                            Console.WriteLine("Joined vc");
-        //                        }
-        //                    });
-        //                    lobbyManager.ConnectNetwork(lobby.Id);
-        //                    lobbyManager.OpenNetworkChannel(lobby.Id, 0, true);
-        //                    //UpdateActivity(discord, lobby);
-        //                    lob = lobby;
-        //                });
-        //                success = true;
-        //            }
-        //            break;
-        //        case "1":
-        //            {
-        //                bool joinSuccess = false;
-        //                while (!joinSuccess)
-        //                {
-        //                    Console.WriteLine("Enter in the lobby id: ");
-        //                    string? id = Console.ReadLine();
-        //                    Console.WriteLine("Enter in the lobby secret: ");
-        //                    string? secret = Console.ReadLine();
-        //                    if (id == null || secret == null)
-        //                    {
-        //                        continue;
-        //                    }
-        //                    lobbyManager.ConnectLobby(long.Parse(id), secret, (Result res, ref Lobby lobby) =>
-        //                    {
-        //                        if (res != Result.Ok)
-        //                        {
-        //                            Console.WriteLine("Something went wrong when joining the lobby");
-        //                            return;
-        //                        }
-        //                        Console.WriteLine($"All users in the lobby: {string.Join(",\n", lobbyManager.GetMemberUsers(lobby.Id))}");
-        //                        foreach (User u in lobbyManager.GetMemberUsers(lobby.Id))
-        //                        {
-        //                            if (u.Id != currentUser.Value.Id)
-        //                            {
-        //                                userCache[u.Id] = u;
-        //                                nameToIdCache[u.Username + "#" + u.Discriminator] = u.Id;
-        //                                userVolumes[u.Id] = defaultVol;
-        //                            }
-        //                        }
-
-        //                        lobbyManager.ConnectVoice(lobby.Id, x =>
-        //                        {
-        //                            if (res != Result.Ok)
-        //                            {
-        //                                Console.WriteLine("Something went wrong when joining vc");
-        //                            }
-        //                            else
-        //                            {
-        //                                Console.WriteLine("Joined vc");
-        //                            }
-        //                        });
-        //                        lobbyManager.ConnectNetwork(lobby.Id);
-        //                        lob = lobby;
-        //                    });
-        //                    joinSuccess = true;
-        //                }
-        //                success = true;
-        //            }
-        //            break;
-        //        default:
-        //            Console.WriteLine("Enter in just a \"0\" or \"1\"");
-        //            continue;
-        //    }
-        //}
-
-
-
-
-        //return;
-
-        //static void UpdateActivity(Discord.Discord discord, Discord.Lobby lobby)
-        //{
-        //    var activityManager = discord.GetActivityManager();
-        //    var lobbyManager = discord.GetLobbyManager();
-
-        //    var activity = new Discord.Activity
-        //    {
-        //        State = "olleh",
-        //        Details = "foo details",
-        //        Timestamps =
-        //            {
-        //                Start = 5,
-        //                End = 6,
-        //            },
-        //        Assets =
-        //            {
-        //                LargeImage = "foo largeImageKey",
-        //                LargeText = "foo largeImageText",
-        //                SmallImage = "foo smallImageKey",
-        //                SmallText = "foo smallImageText",
-        //            },
-        //        Party = {
-        //               Id = lobby.Id.ToString(),
-        //               Size = {
-        //                    CurrentSize = lobbyManager.MemberCount(lobby.Id),
-        //                    MaxSize = (int)lobby.Capacity,
-        //                },
-        //            },
-        //        Secrets = {
-        //                Join = lobbyManager.GetLobbyActivitySecret(lobby.Id),
-        //            },
-        //        Instance = true,
-        //    };
-
-        //    activityManager.UpdateActivity(activity, result =>
-        //    {
-        //        Console.WriteLine("Update Activity {0}", result);
-
-        //        // Send an invite to another user for this activity.
-        //        // Receiver should see an invite in their DM.
-        //        // Use a relationship user's ID for this.
-        //        // activityManager
-        //        //   .SendInvite(
-        //        //       364843917537050624,
-        //        //       Discord.ActivityActionType.Join,
-        //        //       "",
-        //        //       inviteResult =>
-        //        //       {
-        //        //           Console.WriteLine("Invite {0}", inviteResult);
-        //        //       }
-        //        //   );
-        //    });
-        //}
-
-        //const string scope = "identify";//%20voice%20rpc%20rpc.voice.write"; //"voice";// "identify%20voice";//%20rpc.voice.write%20voice";
-        //const string redirect = "http%3A%2F%2Flocalhost%3A5022%2F";
-
-        //Console.WriteLine("Hello, World!");
-
-        //Discord.Discord discord = new Discord.Discord(long.Parse(clientID), (ulong)Discord.CreateFlags.Default);
-        //discord.SetLogHook(Discord.LogLevel.Debug, (level, message) =>
-        //{
-        //    Console.WriteLine("Log[{0}] {1}", level, message);
-        //});
-        ////var voiceManager = discord.GetVoiceManager();
-        //string? usrnm = null;
-        //var userManager = discord.GetUserManager();
-        //userManager.OnCurrentUserUpdate += () =>
-        //{
-        //    var user = userManager.GetCurrentUser();
-        //    usrnm = user.Username;
-        //    //voiceManager.SetLocalMute(user.Id, true);
-        //};
-        //var ovr = discord.GetOverlayManager();
-        //ovr.OpenVoiceSettings((res) =>
-        //{
-        //    if (res == Discord.Result.Ok)
-        //    {
-        //        Console.WriteLine("OpenVoiceSettings");
-        //    }
-        //});
-
         #endregion
     }
 }

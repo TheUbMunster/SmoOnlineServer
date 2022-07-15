@@ -72,5 +72,6 @@ public class Settings {
         public string? Token { get; set; }
         public string Prefix { get; set; } = "$";
         public string? LogChannel { get; set; }
+        public ushort PVCPort { get; set; } = 12000;
     }
 }
