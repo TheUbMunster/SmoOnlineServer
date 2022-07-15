@@ -1,6 +1,6 @@
 ﻿namespace ProxChatClientGUI
 {
-    partial class Settings
+    partial class SettingsUI
     {
         /// <summary>
         /// Required designer variable.

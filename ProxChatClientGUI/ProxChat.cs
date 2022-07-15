@@ -1,11 +1,21 @@
 using System;
 using System.Drawing.Imaging;
+using Shared;
 
 namespace ProxChatClientGUI
 {
     public partial class ProxChat : Form
     {
+        public static ProxChat Instance = null!;
+        private object uiLock = new object();
+        private Queue<Action> messageQueue = new Queue<Action>();
+
+        private Logger viewLogger = new Logger("UI");
+
         Dictionary<long, int> clientIdToDisplayIndex = new Dictionary<long, int>();
+
+        private Model model;
+
 
         public ProxChat()
         {
@@ -20,6 +30,33 @@ namespace ProxChatClientGUI
             SetConnectionStatus(false);
             SetIdentity("bananaman#1234", "haberdashery");
             AddSelfToList();
+            Instance = this;
+            model = new Model();
+            Task.Run(() =>
+            {
+                try
+                {
+                    System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
+                    sw.Start();
+                    while (true)
+                    {
+                        lock (uiLock)
+                        {
+                            while (messageQueue.Count > 0)
+                            {
+                                Invoke(messageQueue.Dequeue());
+                            }
+                        }
+
+                        while (sw.ElapsedMilliseconds < 16) { } //this busy wait allows some time for people to add more messages.
+                        sw.Restart();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    viewLogger.Error(ex.ToString());
+                }
+            });
         }
 
         #region Set UI
@@ -55,7 +92,7 @@ namespace ProxChatClientGUI
             LobbyMember lm = new LobbyMember();
             lm.Dock = DockStyle.Fill;
             userTablePanel.Controls.Add(lm, 0, 0);
-            
+
         }
 
         private void AddMemberToList()
@@ -67,5 +104,24 @@ namespace ProxChatClientGUI
         {
             throw new NotImplementedException();
         }
+
+        public void AddMessage(Action action)
+        {
+            lock (uiLock)
+            {
+                messageQueue.Enqueue(action);
+            }
+        }
+
+        //keybinds:
+        /*
+         * push-to-talk
+         * push-to-team
+         * push-to-global
+         * 
+         * toggle/push-to-(action)
+         *      deafen
+         *      mute
+         */
     }
 }

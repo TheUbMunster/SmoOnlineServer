@@ -71,6 +71,7 @@ namespace Shared
     {
         public bool TeamOnly { get; set; }
         public bool Enable { get; set; } //true for enable, false for disable.
+        public string? SpecificRecipient { get; set; } //if this isn't null, then teamonly is ignored.
 
         public PVCWalkieTalkiePacket()
         {

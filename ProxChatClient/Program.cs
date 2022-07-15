@@ -173,8 +173,8 @@ class Program
             try
             {
                 System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
-                Event netEvent;
                 sw.Start();
+                Event netEvent;
                 while (true)
                 {
                     lock (discordLockKey)
@@ -915,6 +915,7 @@ help, h - shows this helpful command list
                 Id = userId,
                 Size = 512
             };
+            //currentUser.Value.Avatar //look into this
             imageManager.Fetch(imgH, false, (result, returnedHandle) =>
             {
                 if (result != Result.Ok)
