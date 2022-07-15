@@ -102,7 +102,7 @@ class Program
         Task discordTask = Task.Run(() =>
         {
             #region Setup
-            discord = new Discord.Discord(clientId, (UInt64)Discord.CreateFlags.Default);
+            discord = new Discord.Discord(Constants.clientId, (UInt64)Discord.CreateFlags.Default);
             lobbyManager = discord.GetLobbyManager();
             voiceManager = discord.GetVoiceManager();
             // Use your client ID from Discord's developer site.

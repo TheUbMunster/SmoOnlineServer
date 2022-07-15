@@ -5,7 +5,7 @@ using Shared.Packet.Packets;
 
 namespace Shared;
 
-public static class Constants {
+public static partial class Constants {
     public const int CostumeNameSize = 0x20;
 
     // dictionary of packet types to packet
@@ -41,6 +41,4 @@ public static class Constants {
         {"dark", "Special1WorldHomeStage"},
         {"darker", "Special2WorldHomeStage"}
     };
-
-
 }

@@ -33,14 +33,10 @@ server.ClientJoined += (c, _) =>
     c.Metadata["scenario"] = (byte?)0;
     c.Metadata["2d"] = false;
     c.Metadata["speedrun"] = false;
-    foreach (Client client in server.Clients.Where(client => client.Metadata.ContainsKey("lastGamePacket")).ToArray())
-    {
-        try
-        {
+    foreach (Client client in server.Clients.Where(client => client.Metadata.ContainsKey("lastGamePacket")).ToArray()) {
+        try {
             c.Send((GamePacket)client.Metadata["lastGamePacket"]!, client).Wait();
-        }
-        catch
-        {
+        } catch {
             // lol who gives a fuck
         }
     }
