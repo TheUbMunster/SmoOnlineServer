@@ -145,7 +145,7 @@
             // 
             this.usernameLabel.AutoSize = true;
             this.usernameLabel.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.usernameLabel.Font = new System.Drawing.Font("Teko", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point);
+            this.usernameLabel.Font = new System.Drawing.Font("Teko", 11.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point);
             this.usernameLabel.ForeColor = System.Drawing.Color.Navy;
             this.usernameLabel.Location = new System.Drawing.Point(3, 31);
             this.usernameLabel.Name = "usernameLabel";

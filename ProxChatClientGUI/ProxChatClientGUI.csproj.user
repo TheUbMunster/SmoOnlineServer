@@ -10,5 +10,8 @@
     <Compile Update="SettingsUI.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Update="TextPopup.cs">
+      <SubType>Form</SubType>
+    </Compile>
   </ItemGroup>
 </Project>

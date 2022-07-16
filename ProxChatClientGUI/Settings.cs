@@ -7,6 +7,37 @@ using System.Text.Json;
 
 public class Settings
 {
+    public class VolumePreferences
+    {
+        private Dictionary<string, byte>? UsernameToVolume { get; set; }
+        public VolumePreferences() { }
+
+        public byte this[string username]
+        {
+            get
+            {
+                if (UsernameToVolume == null)
+                {
+                    UsernameToVolume = new Dictionary<string, byte>();
+                    UsernameToVolume.Add(username, Instance.DefaultVolume!.Value);
+                }
+                else if (!UsernameToVolume.ContainsKey(username))
+                {
+                    UsernameToVolume.Add(username, Instance.DefaultVolume!.Value);
+                }
+                return UsernameToVolume[username];
+            }
+            set
+            {
+                if (UsernameToVolume == null)
+                {
+                    UsernameToVolume = new Dictionary<string, byte>();
+                }
+                UsernameToVolume[username] = value;
+            }
+        }
+    }
+
     public static Settings Instance = null!;
 
     static Settings()
@@ -28,95 +59,32 @@ public class Settings
         else
         {
             Instance = new Settings();
-            Instance.SaveSettings();
+            SaveSettings();
         }
     }
 
 
-    private ushort? serverPort;
-    private ushort? ServerPort 
-    {
-        get
-        {
-            return serverPort ??= 12000;
-        }
-        set => serverPort = value;
-    }
+    public ushort? ServerPort { get; set; } = 12000;
+    public string? ServerHost { get; set; }
+    public string? IngameName { get; set; }
+    public byte? DefaultVolume { get; set; } = 150;
+    public VolumePreferences? VolumePrefs { get; private set; } = new VolumePreferences();
+    /// <summary>
+    /// //"Always On", "Push-To-Talk", "Push-To-Mute"
+    /// </summary>
+    public string? SpeakMode { get; set; } = "Always On"; 
+    public Keys? PushToTeam { get; set; }
+    public Keys? PushToGlobal { get; set; }
+    public Keys? ToggleDeafen { get; set; }
+    /// <summary>
+    /// for "Always On", is toggle mute, for "PTT" and "PTM" it's the action key for that action
+    /// </summary>
+    public Keys? SpeakAction { get; set; } 
 
-    private string? ServerIP { get; set; }
-    private string? IngameName { get; set; }
-    private byte? defaultVolume;
-    private byte? DefaultVolume 
-    {
-        get
-        {
-            return defaultVolume ??= 150;
-        }
-        set => defaultVolume = value; 
-    }
-    private Dictionary<string, byte> userVolumes = new Dictionary<string, byte>(); //TODO: CHANGE TO (userId, vol)
 
-    #region Getters/Setters
-    public void SetUserVolumePreference(string discordName, byte volume)
+    public static void SaveSettings()
     {
-        userVolumes[discordName] = volume;
-        SaveSettings();
-    }
-
-    public byte GetUserVolumePreference(string discordName)
-    {
-        if (userVolumes.ContainsKey(discordName))
-            return userVolumes[discordName];
-        else
-            return userVolumes[discordName] = DefaultVolume!.Value;
-    }
-
-    public void SetDefaultVolume(byte vol)
-    {
-        DefaultVolume = vol;
-    }
-
-    public byte GetDefaultVolume()
-    {
-        return DefaultVolume!.Value;
-    }
-
-    public void SetPort(ushort? port)
-    {
-        ServerPort = port;
-        SaveSettings();
-    }
-
-    public ushort? GetPort()
-    {
-        return ServerPort;
-    }
-
-    public void SetIP(string? ip)
-    {
-        ServerIP = ip;
-        SaveSettings();
-    }
-
-    public string? GetIP()
-    {
-        return ServerIP;
-    }
-
-    public void SetIGName(string? igName)
-    {
-        IngameName = igName;
-        SaveSettings();
-    }
-
-    public string? GetIGName()
-    {
-        return IngameName;
-    }
-    #endregion
-
-    private void SaveSettings()
-    {
-        File.WriteAllText("settings.json", JsonSerializer.Serialize(Instance));
+        string json = JsonSerializer.Serialize(Instance, new JsonSerializerOptions() { WriteIndented = true });
+        File.WriteAllText("settings.json", json);
     }
 }

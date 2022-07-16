@@ -100,6 +100,7 @@
             this.settingsButton.TabIndex = 2;
             this.settingsButton.Text = "settings";
             this.settingsButton.UseVisualStyleBackColor = true;
+            this.settingsButton.Click += new System.EventHandler(this.settingsButton_Click);
             // 
             // connectDisconnectButton
             // 
@@ -111,6 +112,7 @@
             this.connectDisconnectButton.TabIndex = 3;
             this.connectDisconnectButton.Text = "conn/disconn";
             this.connectDisconnectButton.UseVisualStyleBackColor = true;
+            this.connectDisconnectButton.Click += new System.EventHandler(this.connectDisconnectButton_Click);
             // 
             // mainTablePanel
             // 

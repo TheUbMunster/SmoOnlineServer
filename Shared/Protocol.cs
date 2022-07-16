@@ -12,7 +12,9 @@ namespace Shared
     {
         public static byte[] Serialize<T>(T packet) where T : PVCPacket
         {
-            return Encoding.UTF8.GetBytes(JsonSerializer.Serialize<T>(packet));
+            //TODO:
+            //serialize as object
+            return Encoding.UTF8.GetBytes(JsonSerializer.Serialize<T>(packet)); // <object>
         }
 
         public static T? Deserialize<T>(byte[] data) where T : PVCPacket

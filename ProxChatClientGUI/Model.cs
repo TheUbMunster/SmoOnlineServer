@@ -33,7 +33,6 @@ namespace ProxChatClientGUI
         private ImageManager imageManager = null!;
         private UserManager userManager = null!;
         private User? currentUser = null;
-        private byte[]? currentUserImageData = null;
         private Lobby? lob = null;
         
         private Dictionary<string, long> nameToId = new Dictionary<string, long>();
@@ -44,14 +43,17 @@ namespace ProxChatClientGUI
         private string lastSingleUsername = null!;
         private ulong multiTicker = 0;
 
+        private string ingameUsername;
+
         private Host? client = null;
 
         private event Action<long>? onUserConnect;
         private event Action<long>? onUserDisconnect;
         private event Action<long, uint, byte[]>? onImageRecieved;
 
-        public Model()
+        public Model(string igUsername)
         {
+            ingameUsername = igUsername;
             Task.Run(() =>
             {
                 #region UI Event Subscription
@@ -60,7 +62,8 @@ namespace ProxChatClientGUI
                     ProxChat.Instance.AddMessage(() =>
                     {
                         //add that users UI element.
-                        ProxChat.Instance.AddMemberToList(id, id == currentUser!.Value.Id);
+                        string username = idToUser[id].Username + "#" + idToUser[id].Discriminator;
+                        ProxChat.Instance.AddMemberToList(id, username, id == currentUser!.Value.Id);
                         //bind buttons
                     });
                 };
@@ -71,6 +74,7 @@ namespace ProxChatClientGUI
                     {
                         //unbind buttons
                         //remove that users UI element.
+                        ProxChat.Instance.RemoveMemberFromList(id);
                     });
                 };
 
@@ -166,8 +170,8 @@ namespace ProxChatClientGUI
                         idToUser[userId] = user;
                         string userName = user.Username + "#" + user.Discriminator;
                         nameToId[userName] = user.Id;
-                        byte vol = Settings.Instance.GetUserVolumePreference(userName);
-                        voiceManager.SetLocalVolume(userId, Settings.Instance.GetUserVolumePreference(userName));
+                        byte vol = Settings.Instance.VolumePrefs![userName];
+                        voiceManager.SetLocalVolume(userId, vol);
 
                         ImageHandle imgH = new ImageHandle()
                         {
@@ -199,6 +203,10 @@ namespace ProxChatClientGUI
                             }
                         });
                         onUserConnect?.Invoke(userId);
+                        ProxChat.Instance.AddMessage(() =>
+                        {
+                            ProxChat.Instance.PercievedVolumeChange(userId, 1f);
+                        });
                     });
                 };
 
@@ -307,7 +315,7 @@ namespace ProxChatClientGUI
             SendPacket(new PVCClientHandshakePacket()
             {
                 DiscordUsername = currentUser!.Value.Username + "#" + currentUser!.Value.Discriminator,
-                IngameUsername = Settings.Instance.GetIGName()!
+                IngameUsername = ingameUsername
             }, netEvent.Peer);
         }
 
@@ -338,13 +346,21 @@ namespace ProxChatClientGUI
                                     if (vol == null)
                                     {
                                         //default volume for this user.
-                                        voiceManager.SetLocalVolume(nameToId[pair.Key], Settings.Instance.GetUserVolumePreference(pair.Key));
+                                        voiceManager.SetLocalVolume(nameToId[pair.Key], Settings.Instance.VolumePrefs![pair.Key]);
+                                        ProxChat.Instance.AddMessage(() =>
+                                        {
+                                            ProxChat.Instance.PercievedVolumeChange(nameToId[pair.Key], 1f);
+                                        });
                                     }
                                     else
                                     {
                                         float fvol = (vol.Value / 100f);
-                                        byte finalVolume = (byte)(fvol * Settings.Instance.GetUserVolumePreference(pair.Key));
+                                        byte finalVolume = (byte)(fvol * Settings.Instance.VolumePrefs![pair.Key]);
                                         voiceManager.SetLocalVolume(nameToId[pair.Key], finalVolume);
+                                        ProxChat.Instance.AddMessage(() =>
+                                        {
+                                            ProxChat.Instance.PercievedVolumeChange(nameToId[pair.Key], fvol);
+                                        });
                                     }
                                 }
                                 multiTicker = multiPacket.Tick;
@@ -364,13 +380,21 @@ namespace ProxChatClientGUI
                                     if (vol == null)
                                     {
                                         //default volume for this user.
-                                        voiceManager.SetLocalVolume(nameToId[singlePacket.DiscordUsername], Settings.Instance.GetUserVolumePreference(singlePacket.DiscordUsername));
+                                        voiceManager.SetLocalVolume(nameToId[singlePacket.DiscordUsername], Settings.Instance.VolumePrefs![singlePacket.DiscordUsername]);
+                                        ProxChat.Instance.AddMessage(() =>
+                                        {
+                                            ProxChat.Instance.PercievedVolumeChange(nameToId[singlePacket.DiscordUsername], 1f);
+                                        });
                                     }
                                     else
                                     {
                                         float fvol = (vol.Value / 100f);
-                                        byte finalVolume = (byte)(fvol * Settings.Instance.GetUserVolumePreference(singlePacket.DiscordUsername));
+                                        byte finalVolume = (byte)(fvol * Settings.Instance.VolumePrefs![singlePacket.DiscordUsername]);
                                         voiceManager.SetLocalVolume(nameToId[singlePacket.DiscordUsername], finalVolume);
+                                        ProxChat.Instance.AddMessage(() =>
+                                        {
+                                            ProxChat.Instance.PercievedVolumeChange(nameToId[singlePacket.DiscordUsername], fvol);
+                                        });
                                     }
                                 }
                             }
@@ -435,7 +459,11 @@ namespace ProxChatClientGUI
                                             idToUser[u.Id] = u;
                                             string username = u.Username + "#" + u.Discriminator;
                                             nameToId[username] = u.Id;
-                                            voiceManager.SetLocalVolume(u.Id, Settings.Instance.GetUserVolumePreference(username));
+                                            voiceManager.SetLocalVolume(u.Id, Settings.Instance.VolumePrefs![username]);
+                                            ProxChat.Instance.AddMessage(() =>
+                                            {
+                                                ProxChat.Instance.PercievedVolumeChange(u.Id, 1f);
+                                            });
                                             onUserConnect?.Invoke(u.Id);
 
                                             ImageHandle imgH = new ImageHandle()
@@ -444,7 +472,7 @@ namespace ProxChatClientGUI
                                                 Size = 512,
                                                 Type = ImageType.User
                                             };
-                                            //currentUser.Value.Avatar //look into this
+                                            //currentUser.Value.Avatar //look into this (gifs as images?)
                                             imageManager.Fetch(imgH, false, (result, returnedHandle) =>
                                             {
                                                 if (result != Result.Ok)
