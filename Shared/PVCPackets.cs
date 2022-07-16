@@ -70,7 +70,7 @@ namespace Shared
     public class PVCWalkieTalkiePacket : PVCPacket
     {
         public bool TeamOnly { get; set; }
-        public bool Enable { get; set; } //true for enable, false for disable.
+        public bool Enable { get; set; } //true for enable wt mode, false for disable wt mode.
         public string? SpecificRecipient { get; set; } //if this isn't null, then teamonly is ignored.
 
         public PVCWalkieTalkiePacket()

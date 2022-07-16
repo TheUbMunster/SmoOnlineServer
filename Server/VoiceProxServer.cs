@@ -151,6 +151,7 @@ namespace Server
 
         private void HandleDisconnectEvent(ref Event netEvent)
         {
+            pvcLogger.Info("A client disconnected");
             Peer p = netEvent.Peer;
             string discord = discordToPeer.First(x => x.Value.ID == p.ID).Key;
             discordToPeer.Remove(discord);
@@ -231,7 +232,7 @@ namespace Server
 
         private void HandleTimeoutEvent(ref Event netEvent)
         {
-            pvcLogger.Error($"A client timed out");
+            pvcLogger.Warn($"A client timed out");
             HandleDisconnectEvent(ref netEvent);
         }
 

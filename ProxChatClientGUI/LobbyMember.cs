@@ -18,10 +18,66 @@ namespace ProxChatClientGUI
         private static Image microphone = Image.FromFile("Images\\mic.png");
         private static Image walkieTalkie = Image.FromFile("Images\\direct.png");
 
-        private Action? muteCallback;
-        private Action? deafCallback;
+        private Action<bool>? muteCallback; //true mute, false unmute
+        private Action<bool>? deafCallback; //true deaf, false undeaf
         private Action<bool>? directCallback;
         private Action<byte>? volumeCallback;
+
+        private bool muted = false;
+        public bool Muted
+        {
+            get => muted;
+            set
+            {
+                try
+                {
+                    if (value)
+                    {
+                        muteButton.BackgroundImage = crossedMicrophone;
+                    }
+                    else
+                    {
+                        muteButton.BackgroundImage = microphone;
+                    }
+                    if (value != muted)
+                        muteCallback?.Invoke(value);
+                    muteButton.Text = "";
+                }
+                catch
+                {
+                    muteButton.Text = muted ? "unmute" : "mute";
+                }
+                muted = value;
+            }
+        }
+
+        private bool deaf = false;
+        public bool Deaf
+        {
+            get => deaf;
+            set
+            {
+                try
+                {
+                    if (value)
+                    {
+                        deafenButton.BackgroundImage = crossedHeadphones;
+                    }
+                    else
+                    {
+                        deafenButton.BackgroundImage = headphones;
+                    }
+                    if (value != deaf)
+                        deafCallback?.Invoke(value);
+                    deafenButton.Text = "";
+                }
+                catch
+                {
+                    deafenButton.Text = deaf ? "undeaf" : "deaf";
+                }
+                deaf = value;
+            }
+        }
 
         public LobbyMember()
         {
@@ -41,8 +97,8 @@ namespace ProxChatClientGUI
             {
                 directSpeakButton.Text = "direct";
             }
-            SetMuteButtonImage(false);
-            SetDeafenButtonImage(false);
+            Muted = false;
+            Deaf = false;
         }
 
         #region Sets
@@ -64,52 +120,14 @@ namespace ProxChatClientGUI
             usernameLabel.Text = username;
         }
 
-        public void SetMuteButtonImage(bool muted)
-        {
-            try
-            {
-                if (muted)
-                {
-                    muteButton.BackgroundImage = crossedMicrophone;
-                }
-                else
-                {
-                    muteButton.BackgroundImage = microphone;
-                }
-                muteButton.Text = "";
-            }
-            catch 
-            {
-                muteButton.Text = muted ? "unmute" : "mute";
-            }
-        }
-
-        public void SetDeafenButtonImage(bool deafened)
-        {
-            try
-            {
-                if (deafened)
-                {
-                    deafenButton.BackgroundImage = crossedHeadphones;
-                }
-                else
-                {
-                    deafenButton.BackgroundImage = headphones;
-                }
-                deafenButton.Text = "";
-            }
-            catch
-            {
-                deafenButton.Text = deafened ? "undeaf" : "deaf";
-            }
-        }
-
         public void RemoveSelfUI()
         {
             Controls.Remove(directSpeakButton);
             Controls.Remove(volumePercieved);
+            Controls.Remove(volumeSlider);
             directSpeakButton.Dispose();
             volumePercieved.Dispose();
+            volumeSlider.Dispose();
             directCallback = null;
             volumeCallback = null;
         }
@@ -121,20 +139,26 @@ namespace ProxChatClientGUI
             deafCallback = null;
         }
 
-        public void SetVolumeDisplaySlider(float percent)
+        public void SetPercievedVolumeLevel(float percent)
         {
             int val = (int)percent;
-            volumePercieved.Value = val < 0 ? 0 : (val > 100 ? 100 : val);
+            if (!volumePercieved.IsDisposed && !volumePercieved.Disposing)
+                volumePercieved.Value = val < 0 ? 0 : (val > 100 ? 100 : val);
+        }
+
+        public void SetVolumeSlider(byte level)
+        {
+            volumeSlider.Value = level;
         }
         #endregion
 
         #region Set Callbacks
-        public void SetMuteButtonCallback(Action? callback)
+        public void SetMuteButtonCallback(Action<bool>? callback)
         {
             muteCallback = callback;
         }
 
-        public void SetDeafButtonCallback(Action? callback)
+        public void SetDeafButtonCallback(Action<bool>? callback)
         {
             deafCallback = callback;
         }
@@ -153,16 +177,6 @@ namespace ProxChatClientGUI
         #endregion
 
         #region Callbacks
-        private void muteButton_Click(object sender, EventArgs e)
-        {
-            muteCallback?.Invoke();
-        }
-
-        private void deafenButton_Click(object sender, EventArgs e)
-        {
-            deafCallback?.Invoke();
-        }
-
         private void volumeSlider_Scroll(object sender, EventArgs e)
         {
             volumeCallback?.Invoke((byte)volumeSlider.Value);
@@ -177,11 +191,16 @@ namespace ProxChatClientGUI
         {
             directCallback?.Invoke(false);
         }
-
-        private void directSpeakButton_Release(object sender, EventArgs e)
-        {
-            directCallback?.Invoke(false);
-        }
         #endregion
+
+        private void muteButton_Click(object sender, EventArgs e)
+        {
+            Muted = !Muted;
+        }
+
+        private void deafenButton_Click(object sender, EventArgs e)
+        {
+            Deaf = !Deaf;
+        }
     }
 }
