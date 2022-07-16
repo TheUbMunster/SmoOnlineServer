@@ -82,6 +82,9 @@ namespace ProxChatClientGUI
         public LobbyMember()
         {
             InitializeComponent();
+            var font = new System.Drawing.Text.PrivateFontCollection();
+            font.AddFontFile("Fonts\\Teko-Bold.ttf");
+            usernameLabel.Font = new Font(Font.FontFamily, 16f, FontStyle.Bold, GraphicsUnit.Pixel);
             muteButton.BackgroundImageLayout = ImageLayout.Stretch;
             deafenButton.BackgroundImageLayout = ImageLayout.Stretch;
             directSpeakButton.BackgroundImageLayout = ImageLayout.Stretch;

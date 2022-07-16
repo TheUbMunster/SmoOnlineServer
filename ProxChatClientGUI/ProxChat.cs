@@ -113,6 +113,10 @@ namespace ProxChatClientGUI
                 File.AppendAllText($"log_{launchTime.Month}-{launchTime.Day}-{launchTime.Year}--{launchTime.Hour}-{launchTime.Minute}-{launchTime.Second}.txt", data);
             });
             InitializeComponent();
+            var font = new System.Drawing.Text.PrivateFontCollection();
+            font.AddFontFile("Fonts\\RobotoMono-VariableFont_wght.ttf");
+            connectionStatusRTB.Font = new Font(Font.FontFamily, 26f, FontStyle.Bold, GraphicsUnit.Pixel);
+            identityLabel.Font = new Font(Font.FontFamily, 12f, FontStyle.Regular, GraphicsUnit.Pixel);
             try
             {
                 settingsButton.BackgroundImage = gearImage;
