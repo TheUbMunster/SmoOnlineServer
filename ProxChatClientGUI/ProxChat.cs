@@ -259,8 +259,8 @@ namespace ProxChatClientGUI
                     userTablePanel.RowCount++;
                     var rs = new RowStyle(userTablePanel.RowStyles[0].SizeType, userTablePanel.RowStyles[0].Height);
                     userTablePanel.RowStyles.Add(rs);
-                    userTablePanel.Controls.Add(lm, 0, clientIdToDisplayIndex.Count);
                     clientIdToDisplayIndex[userId] = clientIdToDisplayIndex.Count;
+                    userTablePanel.Controls.Add(lm, 0, clientIdToDisplayIndex.Count);
                 }
             }
         }
