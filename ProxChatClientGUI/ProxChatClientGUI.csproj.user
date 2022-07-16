@@ -7,7 +7,7 @@
     <Compile Update="ProxChat.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Update="Settings.cs">
+    <Compile Update="SettingsUI.cs">
       <SubType>Form</SubType>
     </Compile>
   </ItemGroup>

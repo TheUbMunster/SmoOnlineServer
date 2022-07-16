@@ -54,7 +54,7 @@ public class Settings
         }
         set => defaultVolume = value; 
     }
-    private Dictionary<string, byte> userVolumes = new Dictionary<string, byte>();
+    private Dictionary<string, byte> userVolumes = new Dictionary<string, byte>(); //TODO: CHANGE TO (userId, vol)
 
     #region Getters/Setters
     public void SetUserVolumePreference(string discordName, byte volume)

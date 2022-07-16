@@ -16,7 +16,7 @@ namespace ProxChatClientGUI
         private static Image headphones = Image.FromFile("Images\\headphones.png");
         private static Image crossedMicrophone = Image.FromFile("Images\\mic-crossed.png");
         private static Image microphone = Image.FromFile("Images\\mic.png");
-        private static Image walkieTalkie = null!;
+        private static Image walkieTalkie = Image.FromFile("Images\\direct.png");
 
         private Action? muteCallback;
         private Action? deafCallback;
@@ -31,7 +31,7 @@ namespace ProxChatClientGUI
             directSpeakButton.BackgroundImageLayout = ImageLayout.Stretch;
             MaximumSize = new Size(9999, Height);
             MinimumSize = new Size(0, Height);
-
+            userPicture.BackgroundImageLayout = ImageLayout.Stretch;
             try
             {
                 directSpeakButton.BackgroundImage = walkieTalkie;
@@ -46,17 +46,22 @@ namespace ProxChatClientGUI
         }
 
         #region Sets
+        #region UI
         public void SetUserImage(Image? img)
         {
             if (img != null)
             {
-                userImage.Image = img;
-                userImage.Text = "";
+                userPicture.BackgroundImage = img;
             }
             else
             {
-                userImage.Text = "Image";
+                userPicture.BackgroundImage = null;
             }
+        }
+
+        public void SetUsername(string username)
+        {
+            usernameLabel.Text = username;
         }
 
         public void SetMuteButtonImage(bool muted)
@@ -99,9 +104,21 @@ namespace ProxChatClientGUI
             }
         }
 
-        public void DisableDeafenButton()
+        public void RemoveSelfUI()
         {
-            deafenButton.Enabled = false;
+            Controls.Remove(directSpeakButton);
+            Controls.Remove(volumePercieved);
+            directSpeakButton.Dispose();
+            volumePercieved.Dispose();
+            directCallback = null;
+            volumeCallback = null;
+        }
+
+        public void RemoveOtherUI()
+        {
+            Controls.Remove(deafenButton);
+            deafenButton.Dispose();
+            deafCallback = null;
         }
 
         public void SetVolumeDisplaySlider(float percent)
@@ -109,7 +126,9 @@ namespace ProxChatClientGUI
             int val = (int)percent;
             volumePercieved.Value = val < 0 ? 0 : (val > 100 ? 100 : val);
         }
+        #endregion
 
+        #region Set Callbacks
         public void SetMuteButtonCallback(Action? callback)
         {
             muteCallback = callback;
@@ -130,6 +149,7 @@ namespace ProxChatClientGUI
         {
             volumeCallback = callback;
         }
+        #endregion
         #endregion
 
         #region Callbacks

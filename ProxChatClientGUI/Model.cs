@@ -33,6 +33,7 @@ namespace ProxChatClientGUI
         private ImageManager imageManager = null!;
         private UserManager userManager = null!;
         private User? currentUser = null;
+        private byte[]? currentUserImageData = null;
         private Lobby? lob = null;
         
         private Dictionary<string, long> nameToId = new Dictionary<string, long>();
@@ -47,11 +48,55 @@ namespace ProxChatClientGUI
 
         private event Action<long>? onUserConnect;
         private event Action<long>? onUserDisconnect;
+        private event Action<long, uint, byte[]>? onImageRecieved;
 
         public Model()
         {
             Task.Run(() =>
             {
+                #region UI Event Subscription
+                onUserConnect += id =>
+                {
+                    ProxChat.Instance.AddMessage(() =>
+                    {
+                        //add that users UI element.
+                        ProxChat.Instance.AddMemberToList(id, id == currentUser!.Value.Id);
+                        //bind buttons
+                    });
+                };
+
+                onUserDisconnect += id =>
+                {
+                    ProxChat.Instance.AddMessage(() =>
+                    {
+                        //unbind buttons
+                        //remove that users UI element.
+                    });
+                };
+
+                onImageRecieved += (id, size, data) =>
+                {
+                    ProxChat.Instance.AddMessage(() =>
+                    {
+                        //fix pixel data
+                        for (int i = 0; i < data.Length; i += 4)
+                        {
+                            byte r = data[i];
+                            byte g = data[i + 1];
+                            byte b = data[i + 2];
+                            byte a = data[i + 3];
+
+                            data[i] = b;
+                            data[i + 1] = g;
+                            data[i + 2] = r;
+                            data[i + 3] = a;
+                        }
+                        //set the image
+                        ProxChat.Instance.SetUserImage(id, size, data);
+                    });
+                };
+                #endregion
+
                 #region Setup
                 Library.Initialize();
                 discord = new Discord.Discord(Constants.clientId, (UInt64)Discord.CreateFlags.Default);
@@ -66,11 +111,41 @@ namespace ProxChatClientGUI
                 UserManager.CurrentUserUpdateHandler upd = () =>
                 {
                     currentUser = userManager.GetCurrentUser();
-                    //userCache[currentUser.Value.Id] = currentUser.Value;
-                    //nameToIdCache[currentUser.Value.Username + "#" + currentUser.Value.Discriminator] = currentUser.Value.Id;
+                    idToUser[currentUser.Value.Id] = currentUser.Value;
+                    nameToId[currentUser.Value.Username + "#" + currentUser.Value.Discriminator] = currentUser.Value.Id;
+                    onUserConnect?.Invoke(currentUser.Value.Id);
+                    ImageHandle imgH = new ImageHandle()
+                    {
+                        Id = currentUser.Value.Id,
+                        Size = 512,
+                        Type = ImageType.User
+                    };
+                    //currentUser.Value.Avatar //look into this
+                    imageManager.Fetch(imgH, false, (result, returnedHandle) =>
+                    {
+                        if (result != Result.Ok)
+                        {
+                            modelLogger.Warn($"Failed to get the profile picture for the main user");
+                            return;
+                        }
+                        else
+                        {
+                            try
+                            {
+                                byte[] data = imageManager.GetData(returnedHandle);
+                                idToPic[returnedHandle.Id] = data;
+                                onImageRecieved?.Invoke(returnedHandle.Id, returnedHandle.Size, data);
+                            }
+                            catch (Exception ex)
+                            {
+                                modelLogger.Warn($"Issue deserializing image for the main user. Error: {ex.ToString()}");
+                                //return null
+                            }
+                        }
+                    });
                 };
                 userManager.OnCurrentUserUpdate += upd;
-                while (currentUser == null)
+                while (currentUser == null) //add timeout for image data
                 {
                     discord.RunCallbacks();
                 }
@@ -97,14 +172,15 @@ namespace ProxChatClientGUI
                         ImageHandle imgH = new ImageHandle()
                         {
                             Id = userId,
-                            Size = 512
+                            Size = 512,
+                            Type = ImageType.User
                         };
                         //currentUser.Value.Avatar //look into this
                         imageManager.Fetch(imgH, false, (result, returnedHandle) =>
                         {
                             if (result != Result.Ok)
                             {
-                                modelLogger.Warn($"Failed to get the profile picture for user: {userId}");
+                                modelLogger.Warn($"Failed to get the profile picture for user: {returnedHandle.Id}");
                                 return;
                             }
                             else
@@ -113,18 +189,16 @@ namespace ProxChatClientGUI
                                 {
                                     byte[] data = imageManager.GetData(returnedHandle);
                                     idToPic[returnedHandle.Id] = data;
-                                    //using (MemoryStream ms = new MemoryStream(data))
-                                    //{
-                                    //    //Image img = Image.FromStream(ms);
-                                    //}
+                                    onImageRecieved?.Invoke(returnedHandle.Id, returnedHandle.Size, data);
                                 }
                                 catch (Exception ex)
                                 {
-                                    modelLogger.Warn($"Issue deserializing image for user: {userId}. Error: {ex.ToString()}");
+                                    modelLogger.Warn($"Issue deserializing image for user: {returnedHandle.Id}. Error: {ex.ToString()}");
                                     //return null
                                 }
                             }
                         });
+                        onUserConnect?.Invoke(userId);
                     });
                 };
 
@@ -134,18 +208,9 @@ namespace ProxChatClientGUI
                     nameToId.Remove(userName);
                     idToUser.Remove(userId);
                     idToPic.Remove(userId);
+                    onUserDisconnect?.Invoke(userId);
                 };
                 #endregion
-
-                //#region UI Event Subscription
-                //onUserConnect += id =>
-                //{
-                //    ProxChat.Instance.AddMessage(() =>
-                //    {
-                //        //
-                //    });
-                //};
-                //#endregion
 
                 #region Loop
                 try
@@ -363,7 +428,7 @@ namespace ProxChatClientGUI
                                     IEnumerable<User> users = lobbyManager.GetMemberUsers(lobby.Id);
                                     resultMessage.Append("All users in the lobby: " +
                                         $"{string.Join(",\n", users.Select(x => $"{x.Id}: {x.Username}#{x.Discriminator}"))}\n");
-                                    foreach (User u in lobbyManager.GetMemberUsers(lobby.Id))
+                                    foreach (User u in users)
                                     {
                                         if (u.Id != currentUser!.Value.Id)
                                         {
@@ -371,6 +436,37 @@ namespace ProxChatClientGUI
                                             string username = u.Username + "#" + u.Discriminator;
                                             nameToId[username] = u.Id;
                                             voiceManager.SetLocalVolume(u.Id, Settings.Instance.GetUserVolumePreference(username));
+                                            onUserConnect?.Invoke(u.Id);
+
+                                            ImageHandle imgH = new ImageHandle()
+                                            {
+                                                Id = u.Id,
+                                                Size = 512,
+                                                Type = ImageType.User
+                                            };
+                                            //currentUser.Value.Avatar //look into this
+                                            imageManager.Fetch(imgH, false, (result, returnedHandle) =>
+                                            {
+                                                if (result != Result.Ok)
+                                                {
+                                                    modelLogger.Warn($"Failed to get the profile picture for user: {returnedHandle.Id}");
+                                                    return;
+                                                }
+                                                else
+                                                {
+                                                    try
+                                                    {
+                                                        byte[] data = imageManager.GetData(returnedHandle);
+                                                        idToPic[returnedHandle.Id] = data;
+                                                        onImageRecieved?.Invoke(returnedHandle.Id, returnedHandle.Size, data);
+                                                    }
+                                                    catch (Exception ex)
+                                                    {
+                                                        modelLogger.Warn($"Issue deserializing image for user: {returnedHandle.Id}. Error: {ex.ToString()}");
+                                                        //return null
+                                                    }
+                                                }
+                                            });
                                         }
                                     }
 
@@ -431,40 +527,6 @@ namespace ProxChatClientGUI
             }
         }
         #endregion
-
-        public void GetUserImage(long userId)
-        {
-            ImageHandle imgH = new ImageHandle()
-            {
-                Id = userId,
-                Size = 512
-            };
-            //currentUser.Value.Avatar //look into this
-            imageManager.Fetch(imgH, false, (result, returnedHandle) =>
-            {
-                if (result != Result.Ok)
-                {
-                    modelLogger.Warn($"Failed to get the profile picture for user: {userId}");
-                    return;
-                }
-                else
-                {
-                    try
-                    {
-                        byte[] data = imageManager.GetData(returnedHandle);
-                        using (MemoryStream ms = new MemoryStream(data))
-                        {
-                            //Image img = Image.FromStream(ms);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        modelLogger.Warn($"Issue deserializing image for user: {userId}. Error: {ex.ToString()}");
-                        //return null
-                    }
-                }
-            });
-        }
 
         public void ConnectToServer(string host, string port)
         {

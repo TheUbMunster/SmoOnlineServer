@@ -35,6 +35,8 @@
             this.connectDisconnectButton = new System.Windows.Forms.Button();
             this.mainTablePanel = new System.Windows.Forms.TableLayoutPanel();
             this.userTablePanel = new System.Windows.Forms.TableLayoutPanel();
+            this.globalButton = new System.Windows.Forms.Button();
+            this.teamButton = new System.Windows.Forms.Button();
             this.topbarLayout.SuspendLayout();
             this.mainTablePanel.SuspendLayout();
             this.SuspendLayout();
@@ -113,10 +115,12 @@
             // mainTablePanel
             // 
             this.mainTablePanel.ColumnCount = 2;
-            this.mainTablePanel.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F));
-            this.mainTablePanel.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 80F));
+            this.mainTablePanel.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 85F));
+            this.mainTablePanel.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 15F));
             this.mainTablePanel.Controls.Add(this.topbarLayout, 0, 0);
             this.mainTablePanel.Controls.Add(this.userTablePanel, 0, 1);
+            this.mainTablePanel.Controls.Add(this.globalButton, 1, 1);
+            this.mainTablePanel.Controls.Add(this.teamButton, 1, 2);
             this.mainTablePanel.Dock = System.Windows.Forms.DockStyle.Fill;
             this.mainTablePanel.Location = new System.Drawing.Point(0, 0);
             this.mainTablePanel.Name = "mainTablePanel";
@@ -138,8 +142,28 @@
             this.userTablePanel.RowCount = 1;
             this.mainTablePanel.SetRowSpan(this.userTablePanel, 2);
             this.userTablePanel.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 100F));
-            this.userTablePanel.Size = new System.Drawing.Size(598, 275);
+            this.userTablePanel.Size = new System.Drawing.Size(575, 275);
             this.userTablePanel.TabIndex = 2;
+            // 
+            // globalButton
+            // 
+            this.globalButton.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.globalButton.Location = new System.Drawing.Point(584, 83);
+            this.globalButton.Name = "globalButton";
+            this.globalButton.Size = new System.Drawing.Size(97, 134);
+            this.globalButton.TabIndex = 3;
+            this.globalButton.Text = "global";
+            this.globalButton.UseVisualStyleBackColor = true;
+            // 
+            // teamButton
+            // 
+            this.teamButton.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.teamButton.Location = new System.Drawing.Point(584, 223);
+            this.teamButton.Name = "teamButton";
+            this.teamButton.Size = new System.Drawing.Size(97, 135);
+            this.teamButton.TabIndex = 4;
+            this.teamButton.Text = "team";
+            this.teamButton.UseVisualStyleBackColor = true;
             // 
             // ProxChat
             // 
@@ -166,5 +190,7 @@
         private Button connectDisconnectButton;
         private Label identityLabel;
         private RichTextBox connectionStatusRTB;
+        private Button globalButton;
+        private Button teamButton;
     }
 }
