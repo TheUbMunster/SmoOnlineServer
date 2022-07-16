@@ -156,6 +156,8 @@
             this.globalButton.TabIndex = 3;
             this.globalButton.Text = "global";
             this.globalButton.UseVisualStyleBackColor = true;
+            this.globalButton.MouseDown += new System.Windows.Forms.MouseEventHandler(this.globalButton_OnMouseDown);
+            this.globalButton.MouseUp += new System.Windows.Forms.MouseEventHandler(this.globalButton_OnMouseUp);
             // 
             // teamButton
             // 
@@ -166,6 +168,8 @@
             this.teamButton.TabIndex = 4;
             this.teamButton.Text = "team";
             this.teamButton.UseVisualStyleBackColor = true;
+            this.teamButton.MouseDown += new System.Windows.Forms.MouseEventHandler(this.teamButton_OnMouseDown);
+            this.teamButton.MouseUp += new System.Windows.Forms.MouseEventHandler(this.teamButton_OnMouseUp);
             // 
             // ProxChat
             // 

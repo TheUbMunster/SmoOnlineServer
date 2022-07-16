@@ -55,7 +55,7 @@ class Program
                             {
                                 DateTime logtime = DateTime.Now;
                                 string data = Logger.PrefixNewLines(text, $"{{{logtime}}} {level} [{source}]");
-                                File.AppendAllText($"log_{launchTime.Month}-{launchTime.Day}-{launchTime.Year}::{launchTime.Hour}-{launchTime.Minute}-{launchTime.Second}.txt", data);
+                                File.AppendAllText($"log_{launchTime.Month}-{launchTime.Day}-{launchTime.Year}--{launchTime.Hour}-{launchTime.Minute}-{launchTime.Second}.txt", data);
                             });
                             break;
                         default: //no handler

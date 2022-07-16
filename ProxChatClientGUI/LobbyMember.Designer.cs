@@ -98,7 +98,6 @@
             this.directSpeakButton.Text = "direct";
             this.directSpeakButton.UseVisualStyleBackColor = true;
             this.directSpeakButton.MouseDown += new System.Windows.Forms.MouseEventHandler(this.directSpeakButton_Click);
-            this.directSpeakButton.MouseLeave += new System.EventHandler(this.directSpeakButton_Release);
             this.directSpeakButton.MouseUp += new System.Windows.Forms.MouseEventHandler(this.directSpeakButton_Release);
             // 
             // userPicture
@@ -139,19 +138,19 @@
             this.volumeSlider.Size = new System.Drawing.Size(238, 25);
             this.volumeSlider.TabIndex = 5;
             this.volumeSlider.TickStyle = System.Windows.Forms.TickStyle.None;
-            this.volumeSlider.Value = 150;
+            this.volumeSlider.ValueChanged += new System.EventHandler(this.volumeSlider_Scroll);
             // 
             // usernameLabel
             // 
             this.usernameLabel.AutoSize = true;
             this.usernameLabel.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.usernameLabel.Font = new System.Drawing.Font("Teko", 11.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point);
+            this.usernameLabel.Font = new System.Drawing.Font("Teko", 14.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point);
             this.usernameLabel.ForeColor = System.Drawing.Color.Navy;
             this.usernameLabel.Location = new System.Drawing.Point(3, 31);
             this.usernameLabel.Name = "usernameLabel";
             this.usernameLabel.Size = new System.Drawing.Size(238, 31);
             this.usernameLabel.TabIndex = 6;
-            this.usernameLabel.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            this.usernameLabel.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             // 
             // volumePercieved
             // 

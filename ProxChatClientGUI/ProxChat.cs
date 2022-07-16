@@ -92,8 +92,11 @@ namespace ProxChatClientGUI
 
         private Logger viewLogger = new Logger("UI");
 
-        Dictionary<long, int> clientIdToDisplayIndex = new Dictionary<long, int>();
-        //Dictionary<long, string> idToName = new Dictionary<long, string>();
+        private long? mainUserId = null;
+        private Dictionary<long, int> clientIdToDisplayIndex = new Dictionary<long, int>();
+        private Dictionary<long, bool> isDirectHeldDown = new Dictionary<long, bool>();
+        private bool isTeamHeldDown = false;
+        private bool isGlobalHeldDown = false;
 
         private List<IDisposable> toDispose = new List<IDisposable>();
 
@@ -102,19 +105,28 @@ namespace ProxChatClientGUI
 
         public ProxChat()
         {
+            DateTime launchTime = DateTime.Now;
+            Logger.AddLogHandler((source, level, text, _) =>
+            {
+                DateTime logtime = DateTime.Now;
+                string data = Logger.PrefixNewLines(text, $"{{{logtime}}} {level} [{source}]");
+                File.AppendAllText($"log_{launchTime.Month}-{launchTime.Day}-{launchTime.Year}--{launchTime.Hour}-{launchTime.Minute}-{launchTime.Second}.txt", data);
+            });
             InitializeComponent();
             try
             {
                 settingsButton.BackgroundImage = gearImage;
                 settingsButton.BackgroundImageLayout = ImageLayout.Zoom;
                 settingsButton.Text = "";
-            } catch { }
+            }
+            catch { }
             try
             {
                 teamButton.BackgroundImage = teamImage;
                 teamButton.BackgroundImageLayout = ImageLayout.Zoom;
                 teamButton.Text = "";
-            } catch { }
+            }
+            catch { }
             try
             {
                 globalButton.BackgroundImage = globalImage;
@@ -134,10 +146,10 @@ namespace ProxChatClientGUI
                 DialogResult? res = null;
                 while (res != DialogResult.OK)
                 {
-                    TextPopup popup = new TextPopup() 
+                    TextPopup popup = new TextPopup()
                     {
-                        InfoText = $"Enter the hosname (or IP address) of the server{(res == null ? "" : " (This is required)")}:", 
-                        LabelText = "Enter the Hostname" 
+                        InfoText = $"Enter the hosname (or IP address) of the server{(res == null ? "" : " (This is required)")}:",
+                        LabelText = "Enter the Hostname"
                     };
                     res = popup.ShowDialog(this);
                     if (res == DialogResult.OK)
@@ -177,6 +189,95 @@ namespace ProxChatClientGUI
             }
             #endregion
 
+            #region Keybind Subs
+            KeyService.OnKeyPressed += (Keys key) =>
+            {
+                if (key == Settings.Instance.ToggleDeafen)
+                {
+                    if (mainUserId != null)
+                    {
+                        int row = clientIdToDisplayIndex[mainUserId.Value];
+                        var lm = userTablePanel.Controls.OfType<LobbyMember>().First(x => userTablePanel.GetRow(x) == row);
+                        lm.Deaf = !lm.Deaf;
+                    }
+                    else
+                    {
+                        viewLogger.Warn("Couldn't deafen the user via keybind because they aren't loaded yet!");
+                    }
+                }
+                else if (key == Settings.Instance.PushToTeam)
+                {
+                    OnPressTeamButton(true);
+                }
+                else if (key == Settings.Instance.PushToGlobal)
+                {
+                    OnPressGlobalButton(true);
+                }
+                else if (key == Settings.Instance.SpeakAction)
+                {
+                    switch (Settings.Instance.SpeakMode)
+                    {
+                        case "Always On":
+                            {
+                                if (mainUserId != null)
+                                {
+                                    int row = clientIdToDisplayIndex[mainUserId.Value];
+                                    var lm = userTablePanel.Controls.OfType<LobbyMember>().First(x => userTablePanel.GetRow(x) == row);
+                                    lm.Muted = !lm.Muted;
+                                }
+                                else
+                                {
+                                    viewLogger.Warn("Couldn't mute the user via keybind because they aren't loaded yet!");
+                                }
+                            }
+                            break;
+                        case "Push-To-Talk":
+                            {
+                                SetSelfMute(false);
+                            }
+                            break;
+                        case "Push-To-Mute":
+                            {
+                                SetSelfMute(true);
+                            }
+                            break;
+                    }
+                }
+            };
+            KeyService.OnKeyReleased += (Keys key) =>
+            {
+                /*//if (key == Settings.Instance.ToggleDeafen)
+                //{
+                //    //do nothing
+                //}
+                //else */
+                if (key == Settings.Instance.PushToTeam)
+                {
+                    OnPressTeamButton(false);
+                }
+                else if (key == Settings.Instance.PushToGlobal)
+                {
+                    OnPressGlobalButton(false);
+                }
+                else if (key == Settings.Instance.SpeakAction)
+                {
+                    switch (Settings.Instance.SpeakMode)
+                    {
+                        case "Push-To-Talk":
+                            {
+                                SetSelfMute(true);
+                            }
+                            break;
+                        case "Push-To-Mute":
+                            {
+                                SetSelfMute(false);
+                            }
+                            break;
+                    }
+                }
+            };
+            #endregion
+
             //start the model
             model = new Model(Settings.Instance.IngameName!);
             Task.Run(() =>
@@ -193,8 +294,8 @@ namespace ProxChatClientGUI
                             {
                                 Invoke(messageQueue.Dequeue());
                             }
+                            KeyService.TickKeys();
                         }
-                        KeyService.TickKeys();
                         while (sw.ElapsedMilliseconds < 16) { } //this busy wait allows some time for people to add more messages.
                         sw.Restart();
                     }
@@ -235,48 +336,84 @@ namespace ProxChatClientGUI
 
         public void AddMemberToList(long userId, string username, bool isSelf = false)
         {
-            if (!clientIdToDisplayIndex.ContainsKey(userId))
+            try
             {
-                LobbyMember lm = new LobbyMember();
-                lm.SetDeafButtonCallback(() => OnPressDeafenButton(userId));
-                lm.SetMuteButtonCallback(() => OnPressMuteButton(userId));
-                lm.SetDirectButtonCallback((bool wasPressed) => OnPressDirectButton(userId, wasPressed));
-                lm.SetVolumeSliderCallback((byte vol) => OnChangeVolume(userId, vol));
-                lm.SetUsername(username);
-                if (isSelf)
-                    lm.RemoveSelfUI();
-                else
-                    lm.RemoveOtherUI();
-                lm.Dock = DockStyle.Fill;
-                if (clientIdToDisplayIndex.Count == 0)
+                if (!clientIdToDisplayIndex.ContainsKey(userId))
                 {
-                    userTablePanel.Controls.Add(lm, 0, 0);
-                    clientIdToDisplayIndex[userId] = 0;
-                    SetIdentity(username, Settings.Instance.IngameName!);
+                    mainUserId = isSelf ? userId : mainUserId;
+                    LobbyMember lm = new LobbyMember();
+                    lm.SetVolumeSlider(Settings.Instance.VolumePrefs![username]); //do before set callback
+                    lm.SetMuteButtonCallback((muted) => OnMuteChange(userId, muted));
+                    lm.SetVolumeSliderCallback((byte vol) => OnChangeVolume(username, vol));
+                    lm.SetUsername(username);
+                    if (isSelf)
+                    {
+                        lm.SetDeafButtonCallback((deaf) => OnDeafChange(deaf));
+                        lm.RemoveSelfUI();
+                        //SHUFFLE UP SELF
+                    }
+                    else
+                    {
+                        lm.SetDirectButtonCallback((bool wasPressed) => OnPressDirectButton(userId, wasPressed));
+                        lm.RemoveOtherUI();
+                    }
+                    lm.Dock = DockStyle.Fill;
+                    if (clientIdToDisplayIndex.Count == 0)
+                    {
+                        userTablePanel.Controls.Add(lm, 0, 0);
+                        clientIdToDisplayIndex[userId] = 0;
+                        SetIdentity(username, Settings.Instance.IngameName!);
+                    }
+                    else
+                    {
+                        userTablePanel.RowCount++;
+                        var rs = new RowStyle(userTablePanel.RowStyles[0].SizeType, userTablePanel.RowStyles[0].Height);
+                        userTablePanel.RowStyles.Add(rs);
+                        userTablePanel.Controls.Add(lm, 0, clientIdToDisplayIndex.Count);
+                        clientIdToDisplayIndex[userId] = clientIdToDisplayIndex.Count;
+                    }
                 }
-                else
-                {
-                    userTablePanel.RowCount++;
-                    var rs = new RowStyle(userTablePanel.RowStyles[0].SizeType, userTablePanel.RowStyles[0].Height);
-                    userTablePanel.RowStyles.Add(rs);
-                    clientIdToDisplayIndex[userId] = clientIdToDisplayIndex.Count;
-                    userTablePanel.Controls.Add(lm, 0, clientIdToDisplayIndex.Count);
-                }
+            }
+            catch (Exception ex)
+            {
+                viewLogger.Error("Could not add a user to the list: " + ex.ToString());
             }
         }
 
         public void RemoveMemberFromList(long userId)
         {
-            if (clientIdToDisplayIndex.ContainsKey(userId))
+            try
             {
-                int row = clientIdToDisplayIndex[userId];
-                var lm = userTablePanel.Controls.OfType<LobbyMember>().First(x => userTablePanel.GetRow(x) == row);
-                if (lm != null)
+                if (clientIdToDisplayIndex.ContainsKey(userId))
                 {
-                    userTablePanel.Controls.Remove(lm);
-                    lm.Dispose();
-                    //TODO: SHUFFLE USERS UP TO FILL THE GAP
+                    int row = clientIdToDisplayIndex[userId];
+                    var lm = userTablePanel.Controls.OfType<LobbyMember>().First(x => userTablePanel.GetRow(x) == row);
+                    if (lm != null)
+                    {
+                        userTablePanel.Controls.Remove(lm);
+                        lm.Dispose();
+                        isDirectHeldDown.Remove(userId);
+                        clientIdToDisplayIndex.Remove(userId);
+                        //TODO: SHUFFLE USERS UP TO FILL THE GAP
+                        //int lastIndex = clientIdToDisplayIndex.Max(x => x.Value);
+                        if (clientIdToDisplayIndex.Count > 0)
+                        {
+                            for (int i = row; i < clientIdToDisplayIndex.Count; i++)
+                            {
+                                long userIdOfEntryBelow = clientIdToDisplayIndex.First(x => x.Value == i + 1).Key;
+                                LobbyMember lmn = (LobbyMember)userTablePanel.GetControlFromPosition(0, i + 1);
+                                userTablePanel.Controls.Remove(lmn);
+                                OnPressDirectButton(userIdOfEntryBelow, false);
+                                userTablePanel.Controls.Add(lmn, 0, i);
+                            }
+                            userTablePanel.RowCount--;
+                        }
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+                viewLogger.Error("Could not remove a user from the list: " + ex.ToString());
             }
         }
 
@@ -348,24 +485,79 @@ namespace ProxChatClientGUI
         //}
         #endregion
 
-        private void OnPressDeafenButton(long userId)
+        private void OnDeafChange(bool deaf)
         {
-
+            model.AddMessage(() =>
+            {
+                model.SetDeaf(deaf);
+            });
         }
 
-        private void OnPressMuteButton(long userId)
+        private void OnMuteChange(long userId, bool muted)
         {
-
+            model.AddMessage(() =>
+            {
+                model.SetMute(userId, muted);
+            });
         }
 
-        private void OnChangeVolume(long userId, byte newVolume)
+        private void OnChangeVolume(string username, byte newVolume)
         {
-
+            float percentage = newVolume / Settings.Instance.VolumePrefs![username];
+            model.AddMessage(() =>
+            {
+                model.RecalculateRealVolume(username, percentage);
+            });
         }
 
+        //switch these over to sending a packet every quarter second, and have the clients restore their prox volume if they havent received one in the last second or so
         private void OnPressDirectButton(long userId, bool wasPressed)
         {
+            isDirectHeldDown[userId] = wasPressed;
+        }
 
+        private void OnPressTeamButton(bool wasPressed)
+        {
+            if (wasPressed)
+            {
+                if (!isTeamHeldDown && !isGlobalHeldDown && isDirectHeldDown.All(x => !x.Value))
+                {
+                    isTeamHeldDown = true;
+                }
+            }
+            else
+            {
+                isTeamHeldDown = false;
+            }
+        }
+
+        private void OnPressGlobalButton(bool wasPressed)
+        {
+            if (wasPressed)
+            {
+                if (!isTeamHeldDown && !isGlobalHeldDown && isDirectHeldDown.All(x => !x.Value))
+                {
+                    isGlobalHeldDown = true;
+                }
+            }
+            else
+            {
+                isGlobalHeldDown = false;
+            }
+        }
+
+        public void SetSelfMute(bool muted)
+        {
+            if (mainUserId != null)
+            {
+                int row = clientIdToDisplayIndex[mainUserId.Value];
+                var lm = userTablePanel.Controls.OfType<LobbyMember>().First(x => userTablePanel.GetRow(x) == row);
+                lm.Muted = muted;
+            }
+            else
+            {
+                viewLogger.Warn("Tried to mute the user via PTT or PTM, the mainUserId was null.");
+            }
         }
 
         //call this as voiceprox vols change. (should be 100% if voiceprox is off).
@@ -375,7 +567,7 @@ namespace ProxChatClientGUI
             {
                 int row = clientIdToDisplayIndex[userId];
                 var lm = userTablePanel.Controls.OfType<LobbyMember>().First(x => userTablePanel.GetRow(x) == row);
-                lm.SetVolumeDisplaySlider(percent);
+                lm.SetPercievedVolumeLevel(percent);
             }
             else
             {
@@ -406,7 +598,31 @@ namespace ProxChatClientGUI
 
         private void connectDisconnectButton_Click(object sender, EventArgs e)
         {
-            model.ConnectToServer(Settings.Instance.ServerHost!, Settings.Instance.ServerPort.ToString()!);
+            //disable connect button
+            model.AddMessage(() =>
+            {
+                model.ConnectToServer(Settings.Instance.ServerHost!, Settings.Instance.ServerPort.ToString()!);
+            });
+        }
+
+        private void globalButton_OnMouseDown(object sender, MouseEventArgs e)
+        {
+            OnPressGlobalButton(true);
+        }
+
+        private void globalButton_OnMouseUp(object sender, MouseEventArgs e)
+        {
+            OnPressGlobalButton(false);
+        }
+
+        private void teamButton_OnMouseDown(object sender, MouseEventArgs e)
+        {
+            OnPressTeamButton(true);
+        }
+
+        private void teamButton_OnMouseUp(object sender, MouseEventArgs e)
+        {
+            OnPressTeamButton(false);
         }
     }
 }

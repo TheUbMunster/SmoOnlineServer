@@ -55,7 +55,7 @@ namespace ProxChatClientGUI
             speakModeComboBox.SelectedValueChanged += (_, _) => SetActionLabel();
             try
             {
-                string? name = Enum.GetName(typeof(Keys), int.Parse(Settings.Instance.PushToTeam!.ToString()!));
+                string? name = Enum.GetName(typeof(Keys), Settings.Instance.PushToTeam!);
                 pushToTeamTextBox.Text = name ?? "Click me to set a keybind...";
             }
             catch
@@ -65,7 +65,7 @@ namespace ProxChatClientGUI
             }
             try
             {
-                string? name = Enum.GetName(typeof(Keys), int.Parse(Settings.Instance.PushToGlobal!.ToString()!));
+                string? name = Enum.GetName(typeof(Keys), Settings.Instance.PushToGlobal!);
                 pushToGlobalTextBox.Text = name ?? "Click me to set a keybind...";
             }
             catch
@@ -75,7 +75,7 @@ namespace ProxChatClientGUI
             }
             try
             {
-                string? name = Enum.GetName(typeof(Keys), int.Parse(Settings.Instance.SpeakAction!.ToString()!));
+                string? name = Enum.GetName(typeof(Keys), Settings.Instance.SpeakAction!);
                 pushToActionTextBox.Text = name ?? "Click me to set a keybind...";
             }
             catch
@@ -85,7 +85,7 @@ namespace ProxChatClientGUI
             }
             try
             {
-                string? name = Enum.GetName(typeof(Keys), int.Parse(Settings.Instance.ToggleDeafen!.ToString()!));
+                string? name = Enum.GetName(typeof(Keys), Settings.Instance.ToggleDeafen!);
                 toggleDeafenTextBox.Text = name ?? "Click me to set a keybind...";
             }
             catch
@@ -129,6 +129,7 @@ namespace ProxChatClientGUI
                             break;
                     }
                     recordingMode = RecordingMode.None;
+                    Settings.SaveSettings();
                 });
             };
             ProxChat.KeyService.OnKeyPressed += OnKeyPressedAction;
@@ -216,7 +217,7 @@ namespace ProxChatClientGUI
             {
                 MessageBox.Show("The Default Volume is invalid, make sure it's a number between 0 and 200.");
             }
-
+            Settings.Instance.SpeakMode = speakModeComboBox.SelectedItem.ToString();
             Settings.SaveSettings();
             if (needToCloseIfRunning/* && ProxChat.Instance.*/)
             {
@@ -224,15 +225,15 @@ namespace ProxChatClientGUI
                 Environment.Exit(0); //there isn't a better way to do this other than to: start up another app
                                      //whose sole purpose is to reopen this one, (then close this one).
             }
-            switch (speakModeComboBox.SelectedItem.ToString())
+            switch (Settings.Instance.SpeakMode)
             {
                 case "Always On":
                     break;
                 case "Push-To-Talk":
-                    //need to mute the player (if they aren't already muted, simulate mute button press)
+                    ProxChat.Instance.SetSelfMute(true);
                     break;
                 case "Push-To-Mute":
-                    //need to unmute the player (if they aren't already unmuted, simulate unmute button press)
+                    ProxChat.Instance.SetSelfMute(false);
                     break;
             }
             Close();
