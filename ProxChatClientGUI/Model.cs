@@ -53,7 +53,7 @@ namespace ProxChatClientGUI
 
         private event Action<long>? onUserConnect;
         private event Action<long>? onUserDisconnect;
-        private event Action<long, uint, byte[]>? onImageRecieved;
+        private event Action<long, uint, uint, byte[]>? onImageRecieved;
         private event Action? onServerConnect;
         private event Action? onServerDisconnect;
 
@@ -84,7 +84,7 @@ namespace ProxChatClientGUI
                     });
                 };
 
-                onImageRecieved += (id, size, data) =>
+                onImageRecieved += (id, width, height, data) =>
                 {
                     ProxChat.Instance.AddMessage(() =>
                     {
@@ -102,7 +102,7 @@ namespace ProxChatClientGUI
                             data[i + 3] = a;
                         }
                         //set the image
-                        ProxChat.Instance.SetUserImage(id, size, data);
+                        ProxChat.Instance.SetUserImage(id, width, height, data);
                     });
                 };
 
@@ -175,35 +175,7 @@ namespace ProxChatClientGUI
                     idToUser[currentUser.Value.Id] = currentUser.Value;
                     nameToId[currentUser.Value.Username + "#" + currentUser.Value.Discriminator] = currentUser.Value.Id;
                     onUserConnect?.Invoke(currentUser.Value.Id);
-                    ImageHandle imgH = new ImageHandle()
-                    {
-                        Id = currentUser.Value.Id,
-                        Size = 512,
-                        Type = ImageType.User
-                    };
-                    //currentUser.Value.Avatar //look into this
-                    imageManager.Fetch(imgH, false, (result, returnedHandle) =>
-                    {
-                        if (result != Result.Ok)
-                        {
-                            modelLogger.Warn($"Failed to get the profile picture for the main user");
-                            return;
-                        }
-                        else
-                        {
-                            try
-                            {
-                                byte[] data = imageManager.GetData(returnedHandle);
-                                idToPic[returnedHandle.Id] = data;
-                                onImageRecieved?.Invoke(returnedHandle.Id, returnedHandle.Size, data);
-                            }
-                            catch (Exception ex)
-                            {
-                                modelLogger.Warn($"Issue deserializing image for the main user. Error: {ex.ToString()}");
-                                //return null
-                            }
-                        }
-                    });
+                    FetchImage(currentUser.Value.Id)
                 };
                 userManager.OnCurrentUserUpdate += upd;
                 while (currentUser == null) //add timeout for image data
@@ -235,36 +207,7 @@ namespace ProxChatClientGUI
                                 voiceManager.SetLocalVolume(userId, vol);
                             });
                         });
-
-                        ImageHandle imgH = new ImageHandle()
-                        {
-                            Id = userId,
-                            Size = 512,
-                            Type = ImageType.User
-                        };
-                        //currentUser.Value.Avatar //look into this
-                        imageManager.Fetch(imgH, false, (result, returnedHandle) =>
-                        {
-                            if (result != Result.Ok)
-                            {
-                                modelLogger.Warn($"Failed to get the profile picture for user: {returnedHandle.Id}");
-                                return;
-                            }
-                            else
-                            {
-                                try
-                                {
-                                    byte[] data = imageManager.GetData(returnedHandle);
-                                    idToPic[returnedHandle.Id] = data;
-                                    onImageRecieved?.Invoke(returnedHandle.Id, returnedHandle.Size, data);
-                                }
-                                catch (Exception ex)
-                                {
-                                    modelLogger.Warn($"Issue deserializing image for user: {returnedHandle.Id}. Error: {ex.ToString()}");
-                                    //return null
-                                }
-                            }
-                        });
+                        FetchImage(userId);
                         onUserConnect?.Invoke(userId);
                         ProxChat.Instance.AddMessage(() =>
                         {
@@ -560,36 +503,7 @@ namespace ProxChatClientGUI
                                                 ProxChat.Instance.PercievedVolumeChange(u.Id, 1f);
                                             });
                                             onUserConnect?.Invoke(u.Id);
-
-                                            ImageHandle imgH = new ImageHandle()
-                                            {
-                                                Id = u.Id,
-                                                Size = 512,
-                                                Type = ImageType.User
-                                            };
-                                            //currentUser.Value.Avatar //look into this (gifs as images?)
-                                            imageManager.Fetch(imgH, false, (result, returnedHandle) =>
-                                            {
-                                                if (result != Result.Ok)
-                                                {
-                                                    modelLogger.Warn($"Failed to get the profile picture for user: {returnedHandle.Id}");
-                                                    return;
-                                                }
-                                                else
-                                                {
-                                                    try
-                                                    {
-                                                        byte[] data = imageManager.GetData(returnedHandle);
-                                                        idToPic[returnedHandle.Id] = data;
-                                                        onImageRecieved?.Invoke(returnedHandle.Id, returnedHandle.Size, data);
-                                                    }
-                                                    catch (Exception ex)
-                                                    {
-                                                        modelLogger.Warn($"Issue deserializing image for user: {returnedHandle.Id}. Error: {ex.ToString()}");
-                                                        //return null
-                                                    }
-                                                }
-                                            });
+                                            FetchImage(u.Id);
                                         }
                                     }
 
@@ -626,6 +540,40 @@ namespace ProxChatClientGUI
             {
                 modelLogger.Error($"HandleRecieve got an unparseable packet (contents): {System.Runtime.InteropServices.Marshal.PtrToStringAnsi(netEvent.Packet.Data, netEvent.Packet.Length)}");
             }
+        }
+
+        private void FetchImage(long userId)
+        {
+            ImageHandle imgH = new ImageHandle()
+            {
+                Id = userId,
+                Size = 512,
+                Type = ImageType.User
+            };
+            //currentUser.Value.Avatar //look into this
+            imageManager.Fetch(imgH, false, (result, returnedHandle) =>
+            {
+                if (result != Result.Ok)
+                {
+                    modelLogger.Warn($"Failed to get the profile picture for the main user");
+                    return;
+                }
+                else
+                {
+                    try
+                    {
+                        byte[] data = imageManager.GetData(returnedHandle);
+                        ImageDimensions dim = imageManager.GetDimensions(returnedHandle);
+                        idToPic[returnedHandle.Id] = data;
+                        onImageRecieved?.Invoke(returnedHandle.Id, dim.Width, dim.Height, data);
+                    }
+                    catch (Exception ex)
+                    {
+                        modelLogger.Warn($"Issue deserializing image for the main user. Error: {ex.ToString()}");
+                        //return null
+                    }
+                }
+            });
         }
 
         void HandleTimeoutEvent(ref Event netEvent)

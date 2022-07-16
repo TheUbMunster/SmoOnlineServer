@@ -417,14 +417,14 @@ namespace ProxChatClientGUI
             }
         }
 
-        public void SetUserImage(long userId, uint size, byte[] imageData)
+        public void SetUserImage(long userId, uint width, uint height, byte[] imageData)
         {
             if (clientIdToDisplayIndex.ContainsKey(userId))
             {
                 try
                 {
-                    Bitmap output = new Bitmap((int)size, (int)size, PixelFormat.Format32bppArgb);
-                    BitmapData bData = output.LockBits(new Rectangle(0, 0, (int)size, (int)size), ImageLockMode.WriteOnly, output.PixelFormat);
+                    Bitmap output = new Bitmap((int)width, (int)height, PixelFormat.Format32bppArgb);
+                    BitmapData bData = output.LockBits(new Rectangle(0, 0, (int)width, (int)height), ImageLockMode.WriteOnly, output.PixelFormat);
                     IntPtr ptr = bData.Scan0;
                     Marshal.Copy(imageData, 0, ptr, imageData.Length);
                     output.UnlockBits(bData);
