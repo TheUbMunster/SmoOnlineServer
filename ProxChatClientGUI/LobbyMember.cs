@@ -118,6 +118,12 @@ namespace ProxChatClientGUI
             }
         }
 
+        public void DisposeUserImage()
+        {
+            userPicture.BackgroundImage?.Dispose();
+            userPicture.BackgroundImage = null;
+        }
+
         public void SetUsername(string username)
         {
             usernameLabel.Text = username;

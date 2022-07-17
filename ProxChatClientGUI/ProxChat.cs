@@ -98,7 +98,7 @@ namespace ProxChatClientGUI
         private bool isTeamHeldDown = false;
         private bool isGlobalHeldDown = false;
 
-        private List<IDisposable> toDispose = new List<IDisposable>();
+        //private List<IDisposable> toDispose = new List<IDisposable>();
 
         private Model model = null!;
 
@@ -395,11 +395,10 @@ namespace ProxChatClientGUI
                     if (lm != null)
                     {
                         userTablePanel.Controls.Remove(lm);
+                        lm.DisposeUserImage();
                         lm.Dispose();
                         isDirectHeldDown.Remove(userId);
                         clientIdToDisplayIndex.Remove(userId);
-                        //TODO: SHUFFLE USERS UP TO FILL THE GAP
-                        //int lastIndex = clientIdToDisplayIndex.Max(x => x.Value);
                         if (clientIdToDisplayIndex.Count > 0)
                         {
                             for (int i = row; i < clientIdToDisplayIndex.Count; i++)
@@ -434,7 +433,6 @@ namespace ProxChatClientGUI
                     output.UnlockBits(bData);
                     int row = clientIdToDisplayIndex[userId];
                     var lm = userTablePanel.Controls.OfType<LobbyMember>().First(x => userTablePanel.GetRow(x) == row);
-                    toDispose.Add(output);
                     lm.SetUserImage(output);
                 }
                 catch (Exception e)
@@ -587,13 +585,13 @@ namespace ProxChatClientGUI
             }
         }
 
-        ~ProxChat()
-        {
-            foreach (var elem in toDispose)
-            {
-                elem?.Dispose();
-            }
-        }
+        //~ProxChat()
+        //{
+        //    foreach (var elem in toDispose)
+        //    {
+        //        elem?.Dispose();
+        //    }
+        //}
 
         private void settingsButton_Click(object sender, EventArgs e)
         {
@@ -602,7 +600,7 @@ namespace ProxChatClientGUI
 
         private void connectDisconnectButton_Click(object sender, EventArgs e)
         {
-            //disable connect button
+            SetCDCButtonEnabled(false); //disable connect button so no tomfoolery occurs during connect/disconnect
             model.AddMessage(() =>
             {
                 model.ConnectToServer(Settings.Instance.ServerHost!, Settings.Instance.ServerPort.ToString()!);

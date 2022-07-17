@@ -74,20 +74,23 @@ namespace Server
 
         private void Loop()
         {
-            Event netEvent;
+            System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
+            const int frameTime = 50; //20fps
+            int waitTime = 20;//how much time can be given to server.Service()
             while (true)
             {
+                Event netEvent;
                 int checkResult = server.CheckEvents(out netEvent);
                 if (checkResult == 0)
                 {
                     //no events.
-                    server.Service(0, out netEvent);
+                    server.Service(waitTime, out netEvent);
                 }
                 else if (checkResult < 0)
                 {
                     pvcLogger.Error("CheckEvents failed.");
                 }
-
+                sw.Restart(); //start timing non-service work
                 switch (netEvent.Type)
                 {
                     case EventType.None:
@@ -124,7 +127,6 @@ namespace Server
                         break;
                 }
                 server.Flush();
-
                 //message loop
                 lock (messageKey)
                 {
@@ -140,6 +142,9 @@ namespace Server
                         Console.WriteLine($"Issue in message loop: {ex.ToString()}");
                     }
                 }
+                sw.Stop();
+                waitTime = frameTime - (int)sw.ElapsedMilliseconds;
+                waitTime = waitTime < 0 ? 0 : waitTime; //if each loop needs to take 50ms, here's how much the next service can take
             }
         }
 

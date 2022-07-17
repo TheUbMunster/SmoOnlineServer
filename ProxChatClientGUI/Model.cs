@@ -37,7 +37,6 @@ namespace ProxChatClientGUI
 
         private Dictionary<string, long> nameToId = new Dictionary<string, long>();
         private Dictionary<long, User> idToUser = new Dictionary<long, User>();
-        private Dictionary<long, byte[]> idToPic = new Dictionary<long, byte[]>();
 
         private ulong singleTicker = 0;
         private string lastSingleUsername = null!;
@@ -48,8 +47,6 @@ namespace ProxChatClientGUI
         private Host? client = null;
         private Peer? remotePeer = null;
         private bool requestDisconnect = false;
-
-        private bool deferMessageLoop = false;
 
         private event Action<long>? onUserConnect;
         private event Action<long>? onUserDisconnect;
@@ -136,32 +133,14 @@ namespace ProxChatClientGUI
                         ProxChat.Instance.SetCDCButtonEnabled(true);
                         ProxChat.Instance.SetConnectionStatus(false);
                     });
-                    idToPic.Clear();
+                    //idToPic.Clear();
                     idToUser.Clear();
                     nameToId.Clear();
                     client = null;
                     remotePeer = null;
                     AddMessage(() =>
                     {
-                        if (lob != null)
-                        {
-                            //disconnect from prev lobby.
-                            modelLogger.Info("Leaving the current lobby...");
-                            lobbyManager.DisconnectLobby(lob.Value.Id, res =>
-                            {
-                                if (res != Result.Ok)
-                                {
-                                    modelLogger.Info($"Something went wrong with leaving the lobby: {res.ToString()}");
-                                }
-                                else
-                                {
-                                    modelLogger.Info("You left the lobby");
-                                    idToUser.Clear();
-                                    nameToId.Clear();
-                                }
-                                lob = null;
-                            });
-                        }
+                        DisconnectLobby();
                     });
                 };
                 #endregion
@@ -229,7 +208,6 @@ namespace ProxChatClientGUI
                     string userName = idToUser[userId].Username + "#" + idToUser[userId].Discriminator;
                     nameToId.Remove(userName);
                     idToUser.Remove(userId);
-                    idToPic.Remove(userId);
                     onUserDisconnect?.Invoke(userId);
                 };
                 #endregion
@@ -237,29 +215,13 @@ namespace ProxChatClientGUI
                 #region Loop
                 try
                 {
+                    //System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
+                    //sw.Start();
                     System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
-                    sw.Start();
+                    const int frameTime = 50; //20fps
+                    int waitTime = 20;//how much time can be given to server.Service()
                     while (true)
                     {
-                        lock (modelLock)
-                        {
-                            while (messageQueue.Count > 0)
-                            {
-                                var action = messageQueue.Dequeue();
-                                modelLogger.Info(action.Method.Name);
-                                if (action.Method.Name.Contains("<.ctor>b__20") || action.Method.Name.Contains("<.ctor>b__19"))
-                                {
-                                    modelLogger.Info(action.Method.GetMethodBody()!.ToString() ?? "");
-                                }
-                                action();
-                                if (deferMessageLoop)
-                                {
-                                    deferMessageLoop = false;
-                                    break;
-                                }
-                            }
-                        }
-
                         Event netEvent;
                         if (client != null && client.IsSet) //what does IsSet mean?
                         {
@@ -267,12 +229,13 @@ namespace ProxChatClientGUI
                             if (checkResult == 0)
                             {
                                 //no events.
-                                client.Service(0, out netEvent);
+                                client.Service(waitTime, out netEvent);
                             }
                             else if (checkResult < 0)
                             {
                                 modelLogger.Warn("CheckEvents failed.");
                             }
+                            sw.Restart();
                             if (requestDisconnect)
                             {
                                 requestDisconnect = false;
@@ -307,6 +270,7 @@ namespace ProxChatClientGUI
                                         {
                                             remotePeer = netEvent.Peer;
                                             HandleRecieveEvent(ref netEvent);
+                                            netEvent.Packet.Dispose();
                                         }
                                         break;
                                     case EventType.Timeout:
@@ -323,11 +287,28 @@ namespace ProxChatClientGUI
                                     client.Flush();
                             }
                         }
-
+                        else
+                        {
+                            Thread.Sleep(waitTime); //simulate the waiting done by service
+                            sw.Restart();
+                        }
                         discord.RunCallbacks();
-
-                        while (sw.ElapsedMilliseconds < 16) { } //this busy wait allows some time for people to add more messages.
-                        sw.Restart();
+                        lock (modelLock)
+                        {
+                            while (messageQueue.Count > 0)
+                            {
+                                var action = messageQueue.Dequeue();
+                                modelLogger.Info(action.Method.Name);
+                                if (action.Method.Name.Contains("<.ctor>b__20") || action.Method.Name.Contains("<.ctor>b__19"))
+                                {
+                                    modelLogger.Info($"This might be the ExecutionEngineException cause: " + action.Method.GetMethodBody()!.ToString() ?? "");
+                                }
+                                action();
+                            }
+                        }
+                        sw.Stop();
+                        waitTime = frameTime - (int)sw.ElapsedMilliseconds;
+                        waitTime = waitTime < 0 ? 0 : waitTime; //if each loop needs to take 50ms, here's how much the next service can take
                     }
                 }
                 catch (Exception ex)
@@ -364,7 +345,6 @@ namespace ProxChatClientGUI
             onServerConnect?.Invoke();
         }
 
-        //TODO FIX: ExecutionEngineException only when connecting to server, probably something in here
         void HandleRecieveEvent(ref Event netEvent)
         {
             PVCPacket? packet = Protocol.Deserialize<PVCPacket>(netEvent.Packet.Data, netEvent.Packet.Length);
@@ -373,52 +353,76 @@ namespace ProxChatClientGUI
                 switch (packet)
                 {
                     case PVCWalkieTalkiePacket walkiePacket:
-                        //the client should never recieve a walkie packet
-                        SendPacket(new PVCErrorPacket() { ErrorMessage = "Why are you sending the client a PVCWalkieTalkiePacket?" }, netEvent.Peer);
+                        {
+                            Peer p = netEvent.Peer;
+                            AddMessage(() =>
+                            {
+                                //the client should never recieve a walkie packet
+                                SendPacket(new PVCErrorPacket() { ErrorMessage = "Why are you sending the client a PVCWalkieTalkiePacket?" }, p);
+                            });
+                        }
                         break;
                     case PVCMultiDataPacket multiPacket:
                         {
                             //FIX TODO: race condition nameToId might not have the entry yet.
-                            if (multiPacket.Tick > multiTicker)
+                            AddMessage(() =>
                             {
-                                foreach (var pair in multiPacket.Volumes)
+                                if (multiPacket.Tick > multiTicker)
                                 {
-                                    if (multiPacket.SingleTick < singleTicker && lastSingleUsername == pair.Key)
+                                    foreach (var pair in multiPacket.Volumes)
                                     {
-                                        //don't overwrite the last single, because the last single was newer than this multi.
-                                        continue;
-                                    }
-                                    byte? vol = pair.Value;
-                                    if (vol == null)
-                                    {
-                                        //default volume for this user.
-                                        ProxChat.Instance.AddMessage(() =>
+                                        if (multiPacket.SingleTick < singleTicker && lastSingleUsername == pair.Key)
                                         {
-                                            byte vol = Settings.Instance.VolumePrefs![pair.Key];
-                                            AddMessage(() =>
-                                            {
-                                                voiceManager.SetLocalVolume(nameToId[pair.Key], vol);
-                                            });
-                                            ProxChat.Instance.PercievedVolumeChange(nameToId[pair.Key], 1f);
-                                        });
-                                    }
-                                    else
-                                    {
-                                        float fvol = (vol.Value / 100f);
+                                            //don't overwrite the last single, because the last single was newer than this multi.
+                                            continue;
+                                        }
+                                        byte? vol = pair.Value;
                                         string username = pair.Key;
+                                        long userId = nameToId[username];
                                         ProxChat.Instance.AddMessage(() =>
                                         {
-                                            byte finalVolume = (byte)(fvol * Settings.Instance.VolumePrefs![username]);
+                                            float fVol = vol.HasValue ? (vol.Value / 100f) : 1f;
+                                            byte finalVol = (byte)(fVol * Settings.Instance.VolumePrefs![username]);
                                             AddMessage(() =>
                                             {
-                                                voiceManager.SetLocalVolume(nameToId[username], finalVolume);
+                                                voiceManager.SetLocalVolume(userId, finalVol);
                                             });
-                                            ProxChat.Instance.PercievedVolumeChange(nameToId[username], fvol);
+                                            ProxChat.Instance.PercievedVolumeChange(userId, fVol);
                                         });
+
+                                        #region Old
+                                        //if (vol == null)
+                                        //{
+                                        //    //default volume for this user.
+                                        //    ProxChat.Instance.AddMessage(() =>
+                                        //    {
+                                        //        byte vol = Settings.Instance.VolumePrefs![pair.Key];
+                                        //        AddMessage(() =>
+                                        //        {
+                                        //            voiceManager.SetLocalVolume(nameToId[pair.Key], vol);
+                                        //        });
+                                        //        ProxChat.Instance.PercievedVolumeChange(nameToId[pair.Key], 1f);
+                                        //    });
+                                        //}
+                                        //else
+                                        //{
+                                        //    float fvol = (vol.Value / 100f);
+                                        //    string username = pair.Key;
+                                        //    ProxChat.Instance.AddMessage(() =>
+                                        //    {
+                                        //        byte finalVolume = (byte)(fvol * Settings.Instance.VolumePrefs![username]);
+                                        //        AddMessage(() =>
+                                        //        {
+                                        //            voiceManager.SetLocalVolume(nameToId[username], finalVolume);
+                                        //        });
+                                        //        ProxChat.Instance.PercievedVolumeChange(nameToId[username], fvol);
+                                        //    });
+                                        //}
+                                        #endregion
                                     }
-                                }
-                                multiTicker = multiPacket.Tick;
-                            }
+                                    multiTicker = multiPacket.Tick;
+                                } //else the multipacket is too old, no point in applying it
+                            });
                         }
                         break;
                     case PVCSingleDataPacket singlePacket:
@@ -431,107 +435,122 @@ namespace ProxChatClientGUI
                                     lastSingleUsername = singlePacket.DiscordUsername;
                                     singleTicker = singlePacket.Tick;
                                     byte? vol = singlePacket.Volume;
-                                    if (vol == null)
+                                    string username = singlePacket.DiscordUsername;
+                                    long userId = nameToId[username];
+                                    ProxChat.Instance.AddMessage(() =>
                                     {
-                                        //default volume for this user.
-                                        ProxChat.Instance.AddMessage(() =>
+                                        float fVol = vol.HasValue ? (vol.Value / 100f) : 1f;
+                                        byte finalVol = (byte)(fVol * Settings.Instance.VolumePrefs![username]);
+                                        AddMessage(() =>
                                         {
-                                            byte vol = Settings.Instance.VolumePrefs![singlePacket.DiscordUsername];
-                                            AddMessage(() =>
-                                            {
-                                                voiceManager.SetLocalVolume(nameToId[singlePacket.DiscordUsername], vol);
-                                            });
-                                            ProxChat.Instance.PercievedVolumeChange(nameToId[singlePacket.DiscordUsername], 1f);
+                                            voiceManager.SetLocalVolume(userId, finalVol);
                                         });
-                                    }
-                                    else
-                                    {
-                                        float fvol = (vol.Value / 100f);
-                                        ProxChat.Instance.AddMessage(() =>
-                                        {
-                                            byte finalVolume = (byte)(fvol * Settings.Instance.VolumePrefs![singlePacket.DiscordUsername]);
-                                            AddMessage(() =>
-                                            {
-                                                voiceManager.SetLocalVolume(nameToId[singlePacket.DiscordUsername], finalVolume);
-                                            });
-                                            ProxChat.Instance.PercievedVolumeChange(nameToId[singlePacket.DiscordUsername], fvol);
-                                        });
-                                    }
+                                        ProxChat.Instance.PercievedVolumeChange(userId, fVol);
+                                    });
+
+                                    #region Old
+                                    //if (vol == null)
+                                    //{
+                                    //    //default volume for this user.
+                                    //    ProxChat.Instance.AddMessage(() =>
+                                    //    {
+                                    //        byte vol = Settings.Instance.VolumePrefs![singlePacket.DiscordUsername];
+                                    //        AddMessage(() =>
+                                    //        {
+                                    //            voiceManager.SetLocalVolume(nameToId[singlePacket.DiscordUsername], vol);
+                                    //        });
+                                    //        ProxChat.Instance.PercievedVolumeChange(nameToId[singlePacket.DiscordUsername], 1f);
+                                    //    });
+                                    //}
+                                    //else
+                                    //{
+                                    //    float fvol = (vol.Value / 100f);
+                                    //    ProxChat.Instance.AddMessage(() =>
+                                    //    {
+                                    //        byte finalVolume = (byte)(fvol * Settings.Instance.VolumePrefs![singlePacket.DiscordUsername]);
+                                    //        AddMessage(() =>
+                                    //        {
+                                    //            voiceManager.SetLocalVolume(nameToId[singlePacket.DiscordUsername], finalVolume);
+                                    //        });
+                                    //        ProxChat.Instance.PercievedVolumeChange(nameToId[singlePacket.DiscordUsername], fvol);
+                                    //    });
+                                    //}
+                                    #endregion
                                 }
                             }
                         }
                         break;
                     case PVCClientHandshakePacket handshakePacket:
-                        //the client should never recieve a client handshake packet
-                        SendPacket(new PVCErrorPacket() { ErrorMessage = "Why are you sending the client a PVCClientHandshakePacket?" }, netEvent.Peer);
+                        {
+                            Peer p = netEvent.Peer;
+                            AddMessage(() =>
+                            {
+                                //the client should never recieve a client handshake packet
+                                SendPacket(new PVCErrorPacket() { ErrorMessage = "Why are you sending the client a PVCClientHandshakePacket?" }, p);
+                            });
+                        }
                         break;
                     case PVCLobbyPacket lobbyPacket:
-                        {
-                            //no lock here (already locked)
+                        { 
                             long id = lobbyPacket.LobbyId;
                             string secret = lobbyPacket.Secret;
-                            Action joinLobby = null!;
-                            joinLobby = () =>
+                            DisconnectLobby(() =>
                             {
-                                if (lob != null)
+                                AddMessage(() =>
                                 {
-                                    deferMessageLoop = true;
-                                    AddMessage(joinLobby); //this is the strangest thing I've ever done
-                                    return;
-                                }
-                                modelLogger.Info("Beginning to connect to lobby...");
-                                lobbyManager.ConnectLobby(id, secret, (Result res, ref Lobby lobby) =>
-                                {
-                                    if (res != Result.Ok)
-                                    {
-                                        modelLogger.Info("Something went wrong when joining the lobby.");
-                                        return;
-                                    }
-                                    else
-                                    {
-                                        modelLogger.Info("Joined the lobby successfully.");
-                                    }
-                                    IEnumerable<User> users = lobbyManager.GetMemberUsers(lobby.Id);
-                                    modelLogger.Info("All users in the lobby:\n" +
-                                        $"{string.Join(",\n", users.Select(x => $"{x.Id}: {x.Username}#{x.Discriminator}"))}\n");
-                                    foreach (User u in users)
-                                    {
-                                        if (u.Id != currentUser!.Value.Id)
-                                        {
-                                            idToUser[u.Id] = u;
-                                            string username = u.Username + "#" + u.Discriminator;
-                                            nameToId[username] = u.Id;
-                                            onUserConnect?.Invoke(u.Id);
-                                            ProxChat.Instance.AddMessage(() =>
-                                            {
-                                                byte vol = Settings.Instance.VolumePrefs![username];
-                                                AddMessage(() =>
-                                                {
-                                                    voiceManager.SetLocalVolume(u.Id, vol);
-                                                });
-                                                ProxChat.Instance.PercievedVolumeChange(u.Id, 1f);
-                                            });
-                                            FetchImage(u.Id);
-                                        }
-                                    }
-
-                                    lobbyManager.ConnectVoice(lobby.Id, x =>
+                                    modelLogger.Info("Beginning to connect to lobby...");
+                                    lobbyManager.ConnectLobby(id, secret, (Result res, ref Lobby lobby) =>
                                     {
                                         if (res != Result.Ok)
                                         {
-                                            modelLogger.Info("Something went wrong when joining vc.");
+                                            modelLogger.Info("Something went wrong when joining the lobby.");
+                                            return;
                                         }
                                         else
                                         {
-                                            modelLogger.Info("Joined vc.");
+                                            modelLogger.Info("Joined the lobby successfully.");
                                         }
+                                        IEnumerable<User> users = lobbyManager.GetMemberUsers(lobby.Id);
+                                        modelLogger.Info("All users in the lobby:\n" +
+                                            $"{string.Join(",\n", users.Select(x => $"{x.Id}: {x.Username}#{x.Discriminator}"))}\n");
+                                        foreach (User u in users)
+                                        {
+                                            if (u.Id != currentUser!.Value.Id)
+                                            {
+                                                idToUser[u.Id] = u;
+                                                string username = u.Username + "#" + u.Discriminator;
+                                                nameToId[username] = u.Id;
+                                                onUserConnect?.Invoke(u.Id);
+                                                ProxChat.Instance.AddMessage(() =>
+                                                {
+                                                    byte vol = Settings.Instance.VolumePrefs![username];
+                                                    AddMessage(() =>
+                                                    {
+                                                        voiceManager.SetLocalVolume(u.Id, vol);
+                                                    });
+                                                    ProxChat.Instance.PercievedVolumeChange(u.Id, 1f);
+                                                });
+                                                FetchImage(u.Id);
+                                            }
+                                        }
+
+                                        lobbyManager.ConnectVoice(lobby.Id, x =>
+                                        {
+                                            if (res != Result.Ok)
+                                            {
+                                                modelLogger.Info("Something went wrong when joining vc.");
+                                            }
+                                            else
+                                            {
+                                                modelLogger.Info("Joined vc.");
+                                            }
+                                        });
+                                        lobbyManager.ConnectNetwork(lobby.Id);
+                                        lobbyManager.OpenNetworkChannel(lobby.Id, 0, true);
+                                        lob = lobby;
                                     });
-                                    lobbyManager.ConnectNetwork(lobby.Id);
-                                    lobbyManager.OpenNetworkChannel(lobby.Id, 0, true);
-                                    lob = lobby;
                                 });
-                            };
-                            AddMessage(joinLobby);
+                            });
                         }
                         break;
                     case PVCErrorPacket errorPacket:
@@ -572,7 +591,7 @@ namespace ProxChatClientGUI
                     {
                         byte[] data = imageManager.GetData(returnedHandle);
                         ImageDimensions dim = imageManager.GetDimensions(returnedHandle);
-                        idToPic[returnedHandle.Id] = data;
+                        //idToPic[returnedHandle.Id] = data;
                         onImageRecieved?.Invoke(returnedHandle.Id, dim.Width, dim.Height, data);
                     }
                     catch (Exception ex)
@@ -598,18 +617,50 @@ namespace ProxChatClientGUI
 
         void SendPacket<T>(T packet, Peer recipient) where T : PVCPacket
         {
+            if (!recipient.IsSet)
+            {
+                modelLogger.Warn("Attempt to send a packet to a peer whose IsSet == false");
+                return;
+            }
             byte[] data = Protocol.Serialize(packet);
             Packet pack = default(Packet); //ENet will dispose automatically when sending.
             pack.Create(data, PacketFlags.Reliable);
             bool result = recipient.Send(0, ref pack);
             if (!result)
             {
-                Console.WriteLine($"Sendpacket failed on packet type {packet.PType}.");
+                modelLogger.Warn($"Sendpacket failed on packet type {packet.PType}.");
             }
         }
         #endregion
 
-        //deal with making the connect button work properly FIX: (c, dc, c throws engine exception)
+        private void DisconnectLobby(Action? callback = null)
+        {
+            if (lob != null)
+            {
+                //disconnect from prev lobby.
+                modelLogger.Info("Leaving the current lobby...");
+                lobbyManager.DisconnectLobby(lob.Value.Id, res =>
+                {
+                    if (res == Result.Ok || res == Result.NotFound)
+                    {
+                        modelLogger.Info("You left the lobby");
+                        idToUser.Clear();
+                        nameToId.Clear();
+                    }
+                    else
+                    {
+                        modelLogger.Info($"Something went wrong with leaving the lobby: {res.ToString()}");
+                    }
+                    lob = null;
+                    callback?.Invoke();
+                });
+            }
+            else
+            {
+                callback?.Invoke();
+            }
+        }
+
         public void ConnectToServer(string host, string port)
         {
             try
@@ -617,10 +668,6 @@ namespace ProxChatClientGUI
                 if (client != null)
                 {
                     requestDisconnect = true;
-                    ProxChat.Instance.AddMessage(() =>
-                    {
-                        ProxChat.Instance.SetCDCButtonEnabled(false);
-                    });
                 }
                 else
                 {
@@ -629,10 +676,6 @@ namespace ProxChatClientGUI
                     Address adr = new Address() { Port = ushort.Parse(port) };
                     adr.SetHost(host);
                     client.Connect(adr);
-                    ProxChat.Instance.AddMessage(() =>
-                    {
-                        ProxChat.Instance.SetCDCButtonEnabled(false);
-                    });
                 }
             }
             catch (Exception e)
