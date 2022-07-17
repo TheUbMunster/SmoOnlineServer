@@ -196,6 +196,7 @@ namespace ProxChatClientGUI
                             AddMessage(() =>
                             {
                                 idToVolPercent[userId] = 1f;
+                                modelLogger.Info($"{userName} joined the lobby and volume was set to {vol}.");
                                 voiceManager.SetLocalVolume(userId, vol);
                             });
                             ProxChat.Instance.SetPercievedVolume(userId, 1f);
@@ -209,6 +210,7 @@ namespace ProxChatClientGUI
                     string userName = idToUser[userId].Username + "#" + idToUser[userId].Discriminator;
                     nameToId.Remove(userName);
                     idToUser.Remove(userId);
+                    modelLogger.Info(userName + " left the lobby.");
                     onUserDisconnect?.Invoke(userId);
                 };
                 #endregion
@@ -644,7 +646,7 @@ namespace ProxChatClientGUI
                         }
                         IEnumerable<User> users = lobbyManager.GetMemberUsers(lobby.Id);
                         modelLogger.Info("All users in the lobby:\n" +
-                            $"{string.Join(",\n", users.Select(x => $"{x.Id}: {x.Username}#{x.Discriminator}"))}\n");
+                            $"{string.Join(",\n", users.Select(x => $"{x.Id}: {x.Username}#{x.Discriminator}"))}");
                         foreach (User u in users)
                         {
                             if (u.Id != currentUser!.Value.Id)
