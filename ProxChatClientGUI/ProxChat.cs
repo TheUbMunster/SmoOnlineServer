@@ -505,7 +505,7 @@ namespace ProxChatClientGUI
 
         private void OnChangeVolume(string username, byte newVolume)
         {
-            float percentage = newVolume / Settings.Instance.VolumePrefs![username];
+            float percentage = ((float)newVolume) / Settings.Instance.VolumePrefs![username];
             model.AddMessage(() =>
             {
                 model.RecalculateRealVolume(username, percentage);

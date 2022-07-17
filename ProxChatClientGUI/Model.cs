@@ -527,6 +527,7 @@ namespace ProxChatClientGUI
                                                     AddMessage(() =>
                                                     {
                                                         voiceManager.SetLocalVolume(u.Id, vol);
+                                                        modelLogger.Info($"Set {u.Username}#{u.Discriminator}'s volume to {vol}");
                                                     });
                                                     ProxChat.Instance.PercievedVolumeChange(u.Id, 1f);
                                                 });
@@ -691,6 +692,7 @@ namespace ProxChatClientGUI
                 byte origVol = voiceManager.GetLocalVolume(nameToId[username]);
                 byte newVol = (byte)(percentage * origVol);
                 newVol = (byte)(newVol < 0 ? 0 : (newVol > 200 ? 200 : newVol));
+                modelLogger.Info("Recalc'd a users volume to: " + newVol);
                 voiceManager.SetLocalVolume(nameToId[username], newVol);
             }
             catch (Exception ex)
