@@ -145,7 +145,7 @@ namespace ProxChatClientGUI
                         if (lob != null)
                         {
                             //disconnect from prev lobby.
-                            modelLogger.Info("Leaving the current lobby...\n");
+                            modelLogger.Info("Leaving the current lobby...");
                             lobbyManager.DisconnectLobby(lob.Value.Id, res =>
                             {
                                 if (res != Result.Ok)
@@ -213,14 +213,13 @@ namespace ProxChatClientGUI
                             {
                                 voiceManager.SetLocalVolume(userId, vol);
                             });
+                            ProxChat.Instance.PercievedVolumeChange(userId, 1f);
                         });
                         FetchImage(userId);
                         onUserConnect?.Invoke(userId);
-                        ProxChat.Instance.AddMessage(() =>
-                        {
-                            ProxChat.Instance.PercievedVolumeChange(userId, 1f);
-                            ProxChat.Instance.PercievedVolumeChange(userId, 1f);
-                        });
+                        //ProxChat.Instance.AddMessage(() =>
+                        //{
+                        //});
                     });
                 };
 
@@ -489,7 +488,7 @@ namespace ProxChatClientGUI
                                     }
                                     else
                                     {
-                                        modelLogger.Info("Joined the lobby successfully.\n");
+                                        modelLogger.Info("Joined the lobby successfully.");
                                     }
                                     IEnumerable<User> users = lobbyManager.GetMemberUsers(lobby.Id);
                                     modelLogger.Info("All users in the lobby:\n" +
@@ -501,6 +500,7 @@ namespace ProxChatClientGUI
                                             idToUser[u.Id] = u;
                                             string username = u.Username + "#" + u.Discriminator;
                                             nameToId[username] = u.Id;
+                                            onUserConnect?.Invoke(u.Id);
                                             ProxChat.Instance.AddMessage(() =>
                                             {
                                                 byte vol = Settings.Instance.VolumePrefs![username];
@@ -514,7 +514,6 @@ namespace ProxChatClientGUI
                                             {
                                                 ProxChat.Instance.PercievedVolumeChange(u.Id, 1f);
                                             });
-                                            onUserConnect?.Invoke(u.Id);
                                             FetchImage(u.Id);
                                         }
                                     }
