@@ -498,6 +498,7 @@ namespace ProxChatClientGUI
                             if (lobPack.Secret != null)
                             {
                                 DCConnectToLobby(lobPack.LobbyId, lobPack.Secret!);
+                                onServerConnect?.Invoke();
                             }
                             else
                             {
@@ -509,6 +510,7 @@ namespace ProxChatClientGUI
                                         if (maybeSecret != null)
                                         {
                                             lobPack!.Secret = maybeSecret;
+                                            DCConnectToLobby(lobPack.LobbyId, lobPack.Secret!);
                                             onServerConnect?.Invoke();
                                         }
                                         else
