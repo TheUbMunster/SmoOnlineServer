@@ -207,6 +207,7 @@ namespace ProxChatClientGUI
                         idToUser[userId] = user;
                         string userName = user.Username + "#" + user.Discriminator;
                         nameToId[userName] = user.Id;
+                        onUserConnect?.Invoke(userId);
                         ProxChat.Instance.AddMessage(() =>
                         {
                             byte vol = Settings.Instance.VolumePrefs![userName];
@@ -217,7 +218,6 @@ namespace ProxChatClientGUI
                             ProxChat.Instance.PercievedVolumeChange(userId, 1f);
                         });
                         FetchImage(userId);
-                        onUserConnect?.Invoke(userId);
                         //ProxChat.Instance.AddMessage(() =>
                         //{
                         //});
@@ -509,10 +509,6 @@ namespace ProxChatClientGUI
                                                 {
                                                     voiceManager.SetLocalVolume(u.Id, vol);
                                                 });
-                                                ProxChat.Instance.PercievedVolumeChange(u.Id, vol);
-                                            });
-                                            ProxChat.Instance.AddMessage(() =>
-                                            {
                                                 ProxChat.Instance.PercievedVolumeChange(u.Id, 1f);
                                             });
                                             FetchImage(u.Id);
