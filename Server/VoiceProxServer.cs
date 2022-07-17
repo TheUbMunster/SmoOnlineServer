@@ -99,7 +99,7 @@ namespace Server
                         //this ip address will probably only be contained in the list if the ip of the pvc client and
                         //game are the same (probably only the case if you're running an emulator and pvc client on
                         //the same pc).
-                        if (Settings.Instance.BanList.IpAddresses.Contains(netEvent.Peer.IP))
+                        if (netEvent.Peer.IsSet && Settings.Instance.BanList.IpAddresses.Contains(netEvent.Peer.IP))
                         {
                             //banned user tried to join
                             netEvent.Peer.DisconnectNow(69420);
@@ -170,7 +170,6 @@ namespace Server
         {
             if (!discordToPeer.Values.Contains(netEvent.Peer))
             {
-                //this better be a client handshake packet
                 PVCPacket? packet = Protocol.Deserialize<PVCPacket>(netEvent.Packet.Data, netEvent.Packet.Length);
                 if (packet != null)
                 {
@@ -178,8 +177,8 @@ namespace Server
                     {
                         case PVCWalkieTalkiePacket walkiePacket:
                             {
-                                //the user is enabling team *or* global vc
-
+                                //the user is enabling team *or* global vc *or* individual vc
+                                pvcLogger.Info($"Got walkie packet: recip: {walkiePacket.SpecificRecipient ?? "null"}, teamonly: {walkiePacket.TeamOnly}");
                             }
                             break;
                         case PVCMultiDataPacket multiPacket:
@@ -206,7 +205,11 @@ namespace Server
                                 var lobbyInfo = DiscordBot.Instance.GetLobbyInfo();
                                 if (lobbyInfo != null)
                                 {
-                                    SendPacket(new PVCLobbyPacket() { LobbyId = lobbyInfo.Value.id, Secret = lobbyInfo.Value.secret }, netEvent.Peer);
+                                    SendPacket(new PVCLobbyPacket() 
+                                    {
+                                        LobbyId = lobbyInfo.Value.id, 
+                                        Secret = Settings.Instance.Discord.AutoSendPVCPassword ? lobbyInfo.Value.secret : null
+                                    }, netEvent.Peer);
                                 }
                                 else
                                 {

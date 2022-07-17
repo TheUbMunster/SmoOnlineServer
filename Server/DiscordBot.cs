@@ -47,58 +47,14 @@ public class DiscordBot {
             Task.Run(Reconnect);
             return "Restarting Discord bot";
         });
-
-        //CommandHandler.RegisterCommand("lll", _ =>
-        //{
-        //    if (pvcLobby != null)
-        //    {
-        //        lock (lockKey)
-        //        {
-        //            var users = lobbyManager.GetMemberUsers(pvcLobby.Value.Id);
-        //            return $"All users in the lobby: {string.Join(",\n", users.Select(x => $"{x.Id}: {x.Username}#{x.Discriminator}"))}";
-        //        }
-        //    }
-        //    else
-        //    {
-        //        return "Not currently in a lobby.";
-        //    }
-        //});
-
         if (Config.Token == null) return;
         webClient.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", "Bot " + Config.Token);
-        Settings.LoadHandler += SettingsLoadHandler;
+        //I don't think this is necessary because access to the static member "Settings.Instance" will
+        //trigger a call to the static Settings constructor, which therefore will load the settings.
+        //That means if you access any setting via Settings.Instance."SomeSetting", it will automatically
+        //load the settings.
+        Settings.LoadHandler += SettingsLoadHandler; 
 
-        #region Discord voice lobby stuff
-        //Task discordTask = Task.Run(() =>
-        //{
-        //    try
-        //    {
-        //        System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
-        //        sw.Start();
-        //        while (true)
-        //        {
-        //            lock (lockKey)
-        //            {
-        //                while (messageQueue.Count > 0)
-        //                {
-        //                    messageQueue.Dequeue()();
-        //                }
-        //            }
-        //            //pvcDiscord.RunCallbacks();
-        //            //lobbyManager.FlushNetwork();
-
-        //            //send off pending messages to voice clients?
-        //            while (sw.ElapsedMilliseconds < 16) { } //busy wait because all forms of "sleep" have poor accuracy (granularity of like 10ms, caused by the scheduler event cadence)
-        //            sw.Restart(); //1000 / 16 = ~60 times a second (not including the time it takes to do the callbacks
-        //                          //themselves e.g. if callbacks take ~4ms, then it's only 50 times a second.
-        //        }
-        //    }
-        //    catch (Exception e)
-        //    {
-        //        Logger.Error($"Issue in message loop: {e.ToString()}");
-        //    }
-        //});
-        #endregion
     }
 
     private async Task Reconnect() {
@@ -136,7 +92,25 @@ public class DiscordBot {
         }
     }
 
-    public async Task<bool> OpenPVCLobby()
+    public void ClosePVCLobby()
+    {
+        lock (lobbyLock)
+        {
+            if (pvcLobby != null)
+            {
+                try
+                {
+                    webClient.DeleteAsync($"https://discord.com/api/v10/lobbies/{pvcLobby.Value.Id}");
+                }
+                catch (Exception e)
+                {
+                    Logger.Warn("Attempted to close the discord lobby: " + e.ToString());
+                }
+            }
+        }
+    }
+
+    public async Task<bool> CloseThenOpenPVCLobby()
     {
         bool success = false;
         try
@@ -146,8 +120,6 @@ public class DiscordBot {
                 if (pvcLobby != null)
                 {
                     //fire and forget, if it fails it is garbage collected in 15s anyways
-
-                    //ADD ALL CLIENTS TO PENDING LIST
                     webClient.DeleteAsync($"https://discord.com/api/v10/lobbies/{pvcLobby.Value.Id}");
                 }
             }

@@ -34,6 +34,7 @@ namespace ProxChatClientGUI
         private UserManager userManager = null!;
         private User? currentUser = null;
         private Lobby? lob = null;
+        private PVCLobbyPacket lobPack = null!;
 
         private Dictionary<string, long> nameToId = new Dictionary<string, long>();
         private Dictionary<long, User> idToUser = new Dictionary<long, User>();
@@ -105,7 +106,7 @@ namespace ProxChatClientGUI
                 };
 
                 onServerConnect += () =>
-                {
+                { //TODO: make this only happen upon successful connection to the lobby
                     ProxChat.Instance.AddMessage(() =>
                     {
                         ProxChat.Instance.SetCDCButtonEnabled(true);
@@ -342,7 +343,6 @@ namespace ProxChatClientGUI
                 DiscordUsername = currentUser!.Value.Username + "#" + currentUser!.Value.Discriminator,
                 IngameUsername = ingameUsername
             }, netEvent.Peer);
-            onServerConnect?.Invoke();
         }
 
         void HandleRecieveEvent(ref Event netEvent)
@@ -493,68 +493,34 @@ namespace ProxChatClientGUI
                         }
                         break;
                     case PVCLobbyPacket lobbyPacket:
-                        { 
-                            long id = lobbyPacket.LobbyId;
-                            string secret = lobbyPacket.Secret;
-                            DisconnectLobby(() =>
+                        {
+                            lobPack = lobbyPacket;
+                            if (lobPack.Secret != null)
                             {
-                                AddMessage(() =>
+                                DCConnectToLobby(lobPack.LobbyId, lobPack.Secret!);
+                            }
+                            else
+                            {
+                                ProxChat.Instance.AddMessage(() =>
                                 {
-                                    modelLogger.Info("Beginning to connect to lobby...");
-                                    lobbyManager.ConnectLobby(id, secret, (Result res, ref Lobby lobby) =>
+                                    string? maybeSecret = ProxChat.Instance.PromptForLobbySecret();
+                                    AddMessage(() =>
                                     {
-                                        if (res != Result.Ok)
+                                        if (maybeSecret != null)
                                         {
-                                            modelLogger.Info("Something went wrong when joining the lobby.");
-                                            return;
+                                            lobPack!.Secret = maybeSecret;
+                                            onServerConnect?.Invoke();
                                         }
                                         else
                                         {
-                                            modelLogger.Info("Joined the lobby successfully.");
-                                        }
-                                        IEnumerable<User> users = lobbyManager.GetMemberUsers(lobby.Id);
-                                        modelLogger.Info("All users in the lobby:\n" +
-                                            $"{string.Join(",\n", users.Select(x => $"{x.Id}: {x.Username}#{x.Discriminator}"))}\n");
-                                        foreach (User u in users)
-                                        {
-                                            if (u.Id != currentUser!.Value.Id)
+                                            if (client != null)
                                             {
-                                                idToUser[u.Id] = u;
-                                                string username = u.Username + "#" + u.Discriminator;
-                                                nameToId[username] = u.Id;
-                                                onUserConnect?.Invoke(u.Id);
-                                                ProxChat.Instance.AddMessage(() =>
-                                                {
-                                                    byte vol = Settings.Instance.VolumePrefs![username];
-                                                    AddMessage(() =>
-                                                    {
-                                                        idToVolPercent[u.Id] = 1f;
-                                                        voiceManager.SetLocalVolume(u.Id, vol);
-                                                        modelLogger.Info($"Set {u.Username}#{u.Discriminator}'s volume to {vol}");
-                                                    });
-                                                    ProxChat.Instance.SetPercievedVolume(u.Id, 1f);
-                                                });
-                                                FetchImage(u.Id);
+                                                requestDisconnect = true;
                                             }
                                         }
-
-                                        lobbyManager.ConnectVoice(lobby.Id, x =>
-                                        {
-                                            if (res != Result.Ok)
-                                            {
-                                                modelLogger.Info("Something went wrong when joining vc.");
-                                            }
-                                            else
-                                            {
-                                                modelLogger.Info("Joined vc.");
-                                            }
-                                        });
-                                        lobbyManager.ConnectNetwork(lobby.Id);
-                                        lobbyManager.OpenNetworkChannel(lobby.Id, 0, true);
-                                        lob = lobby;
                                     });
                                 });
-                            });
+                            }                           
                         }
                         break;
                     case PVCErrorPacket errorPacket:
@@ -636,6 +602,88 @@ namespace ProxChatClientGUI
             }
         }
         #endregion
+
+        public void SendWalkieTalkiePacket(long? directRecipientUserId, bool teamOnly)
+        {
+            if (remotePeer.HasValue)
+            {
+                string? username = directRecipientUserId.HasValue ? 
+                    idToUser[directRecipientUserId.Value].Username + "#" + idToUser[directRecipientUserId.Value].Discriminator : null;
+                SendPacket(new PVCWalkieTalkiePacket()
+                {
+                    SpecificRecipient = username,
+                    TeamOnly = teamOnly,
+                },
+                remotePeer.Value);
+            }
+            else
+            {
+                modelLogger.Warn("Attempt to send walkie packet to server, but peer is null.");
+            }
+        }
+
+        private void DCConnectToLobby(long id, string secret)
+        {
+            DisconnectLobby(() =>
+            {
+                AddMessage(() =>
+                {
+                    modelLogger.Info("Beginning to connect to lobby...");
+                    lobbyManager.ConnectLobby(id, secret, (Result res, ref Lobby lobby) =>
+                    {
+                        if (res != Result.Ok)
+                        {
+                            modelLogger.Info("Something went wrong when joining the lobby.");
+                            return;
+                        }
+                        else
+                        {
+                            modelLogger.Info("Joined the lobby successfully.");
+                        }
+                        IEnumerable<User> users = lobbyManager.GetMemberUsers(lobby.Id);
+                        modelLogger.Info("All users in the lobby:\n" +
+                            $"{string.Join(",\n", users.Select(x => $"{x.Id}: {x.Username}#{x.Discriminator}"))}\n");
+                        foreach (User u in users)
+                        {
+                            if (u.Id != currentUser!.Value.Id)
+                            {
+                                idToUser[u.Id] = u;
+                                string username = u.Username + "#" + u.Discriminator;
+                                nameToId[username] = u.Id;
+                                onUserConnect?.Invoke(u.Id);
+                                ProxChat.Instance.AddMessage(() =>
+                                {
+                                    byte vol = Settings.Instance.VolumePrefs![username];
+                                    AddMessage(() =>
+                                    {
+                                        idToVolPercent[u.Id] = 1f;
+                                        voiceManager.SetLocalVolume(u.Id, vol);
+                                        modelLogger.Info($"Set {u.Username}#{u.Discriminator}'s volume to {vol}");
+                                    });
+                                    ProxChat.Instance.SetPercievedVolume(u.Id, 1f);
+                                });
+                                FetchImage(u.Id);
+                            }
+                        }
+
+                        lobbyManager.ConnectVoice(lobby.Id, x =>
+                        {
+                            if (res != Result.Ok)
+                            {
+                                modelLogger.Info("Something went wrong when joining vc.");
+                            }
+                            else
+                            {
+                                modelLogger.Info("Joined vc.");
+                            }
+                        });
+                        lobbyManager.ConnectNetwork(lobby.Id);
+                        lobbyManager.OpenNetworkChannel(lobby.Id, 0, true);
+                        lob = lobby;
+                    });
+                });
+            });
+        }
 
         private void DisconnectLobby(Action? callback = null)
         {

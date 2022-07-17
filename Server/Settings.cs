@@ -7,6 +7,8 @@ using Shared;
 namespace Server;
 
 public class Settings {
+    //Accesses from Program.cs (Via commandhandlers) and in the server itself
+    //seems like it could cause some race conditions and funky behaviour.
     public static Settings Instance = new Settings();
     private static readonly Logger Logger = new Logger("Settings");
     public static Action? LoadHandler;
@@ -73,5 +75,6 @@ public class Settings {
         public string Prefix { get; set; } = "$";
         public string? LogChannel { get; set; }
         public ushort PVCPort { get; set; } = 12000;
+        public bool AutoSendPVCPassword { get; set; } = true;
     }
 }

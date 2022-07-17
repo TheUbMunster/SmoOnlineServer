@@ -9,6 +9,7 @@ public class Settings
 {
     public class VolumePreferences
     {
+        //TODO: add setting for keepalivems time
         private Dictionary<string, byte>? UsernameToVolume { get; set; }
         public VolumePreferences() { }
 

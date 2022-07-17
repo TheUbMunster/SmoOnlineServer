@@ -188,6 +188,8 @@ server.PacketHandler = (c, p) =>
     return true;
 };
 
+
+//TODO: Migrate this to VoiceProxServer.cs
 void UpdateProxChatDataForPlayer(Client c, (Vector3 playerPos, byte? scen, string? stage) playerInfo)
 {
     clientPositionCorrelate[c] = playerInfo;
@@ -304,67 +306,96 @@ CommandHandler.RegisterCommandAliases(args =>
     }
 }, "pvcip");
 
-CommandHandler.RegisterCommand("vcpcorrlist", args =>
+CommandHandler.RegisterCommandAliases(args => 
 {
-    if (args.Length != 0)
+    if (args.Length == 0)
     {
-        return "Usage: vcpcorrlist (no arguments)";
+        return "Need to specify on or off. (Usage: setautosendsecret <on|off>)";
     }
-    else
+    else if (args.Length > 1)
     {
-        lock (igToDiscord)
-        {
-            return string.Join("\n", igToDiscord.Select(x => $"ingame: \"{x.Key}\" discord: \"{x.Value}\""));
-        }
+        return "Too many arguments. (Usage: setautosendsecret <on|off>)";
     }
-});
+    switch (args[0].ToLower())
+    {
+        case "true":
+        case "on":
+            Settings.Instance.Discord.AutoSendPVCPassword = true;
+            Settings.SaveSettings();
+            return "Enabled the auto-sending of the lobby secret to clients.";
+        case "off":
+        case "false":
+            Settings.Instance.Discord.AutoSendPVCPassword = false;
+            Settings.SaveSettings();
+            return "Disabled the auto-sending of the lobby secret to clients.";
+        default:
+            return "Usage: setautosendsecret <on|off>";
+    }
+}, "setautosendsecret", "sass");
 
-CommandHandler.RegisterCommand("vcpcorrdel", args =>
-{
-    if (args.Length != 1)
-    {
-        return "Usage: vcpcorrdel <ingameusername>";
-    }
-    else
-    {
-        lock (igToDiscord)
-        {
-            if (igToDiscord.ContainsKey(args[0]))
-            {
-                igToDiscord.Remove(args[0]);
-                return "Successfully removed the sepcified user from the vcp correlation table.";
-            }
-            else
-            {
-                return $"No user with the in-game username \"{args[0]}\" exists in the vcp correlation table (Perhaps they weren't added with vcpcorr in the first place?).";
-            }
-        }
-    }
-});
+#region Obsolete via GUI PVC client
+//CommandHandler.RegisterCommand("vcpcorrlist", args =>
+//{
+//    if (args.Length != 0)
+//    {
+//        return "Usage: vcpcorrlist (no arguments)";
+//    }
+//    else
+//    {
+//        lock (igToDiscord)
+//        {
+//            return string.Join("\n", igToDiscord.Select(x => $"ingame: \"{x.Key}\" discord: \"{x.Value}\""));
+//        }
+//    }
+//});
 
-CommandHandler.RegisterCommand("vcpcorr", args =>
-{
-    //2 args, correlate discord username to ingame username
-    if (args.Length != 2 || !args[0].Contains("#")) //need the hashtag and number.
-    {
-        return "Usage: vcpcorr <discord#username> <ingameusername>";
-    }
-    else
-    {
-        lock (igToDiscord)
-        {
-            igToDiscord[args[1]] = args[0];
-        }
-        if (server.Clients.Any(x => x.Name == args[1]))
-        {
-            return $"Sucessfully correlated the discord user \"{args[0]}\" to the in-game player \"{args[1]}\".";
-        }
-        else
-        {
-            return $"Correlated the discord user \"{args[0]}\" to the in-game player \"{args[1]}\", however, the player doesn't appear to be in-game yet.";
-        }
-    }
-});
+//CommandHandler.RegisterCommand("vcpcorrdel", args =>
+//{
+//    if (args.Length != 1)
+//    {
+//        return "Usage: vcpcorrdel <ingameusername>";
+//    }
+//    else
+//    {
+//        lock (igToDiscord)
+//        {
+//            if (igToDiscord.ContainsKey(args[0]))
+//            {
+//                igToDiscord.Remove(args[0]);
+//                return "Successfully removed the sepcified user from the vcp correlation table.";
+//            }
+//            else
+//            {
+//                return $"No user with the in-game username \"{args[0]}\" exists in the vcp correlation table (Perhaps they weren't added with vcpcorr in the first place?).";
+//            }
+//        }
+//    }
+//});
+
+//CommandHandler.RegisterCommand("vcpcorr", args =>
+//{
+//    //2 args, correlate discord username to ingame username
+//    if (args.Length != 2 || !args[0].Contains("#")) //need the hashtag and number.
+//    {
+//        return "Usage: vcpcorr <discord#username> <ingameusername>";
+//    }
+//    else
+//    {
+//        lock (igToDiscord)
+//        {
+//            igToDiscord[args[1]] = args[0];
+//        }
+//        if (server.Clients.Any(x => x.Name == args[1]))
+//        {
+//            return $"Sucessfully correlated the discord user \"{args[0]}\" to the in-game player \"{args[1]}\".";
+//        }
+//        else
+//        {
+//            return $"Correlated the discord user \"{args[0]}\" to the in-game player \"{args[1]}\", however, the player doesn't appear to be in-game yet.";
+//        }
+//    }
+//});
+#endregion
 
 CommandHandler.RegisterCommand("voiceprox", args =>
 {
@@ -784,6 +815,7 @@ CommandHandler.RegisterCommand("loadsettings", _ =>
 
 CommandHandler.RegisterCommandAliases(_ =>
 {
+    DiscordBot.Instance.ClosePVCLobby();
     cts.Cancel();
     return "Shutting down";
 }, "exit", "quit", "q");
@@ -794,6 +826,7 @@ Console.CancelKeyPress += (_, e) =>
 {
     e.Cancel = true;
     consoleLogger.Info("Received Ctrl+C");
+    DiscordBot.Instance.ClosePVCLobby();
     cts.Cancel();
 };
 
@@ -822,7 +855,7 @@ VoiceProxServer.Instance.OnClientConnect += (discord, ingame) =>
     }
     if (igToDiscord.Count == 1 && before == 0)
     {
-        DiscordBot.Instance.OpenPVCLobby().ContinueWith((task) =>
+        DiscordBot.Instance.CloseThenOpenPVCLobby().ContinueWith((task) =>
         {
             VoiceProxServer.Instance.AddMessageToQueue(() =>
             {

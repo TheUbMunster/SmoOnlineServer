@@ -288,6 +288,41 @@ namespace ProxChatClientGUI
             {
                 try
                 {
+                    System.Timers.Timer walkieTimer = new System.Timers.Timer(200) { AutoReset = true }; //5 per second (seems resonable)
+                    walkieTimer.Elapsed += (_, _) =>
+                    {
+                        lock (uiLock)
+                        {
+                            if (isGlobalHeldDown)
+                            {
+                                model.AddMessage(() =>
+                                {
+                                    model.SendWalkieTalkiePacket(null, false);
+                                });
+                            }
+                            else if (isTeamHeldDown)
+                            {
+                                model.AddMessage(() =>
+                                {
+                                    model.SendWalkieTalkiePacket(null, true);
+                                });
+                            }
+                            else
+                            {
+                                foreach (var user in isDirectHeldDown)
+                                {
+                                    if (user.Value)
+                                    {
+                                        model.AddMessage(() =>
+                                        {
+                                            model.SendWalkieTalkiePacket(user.Key, true);
+                                        });
+                                        break; //should only be one true in the collection
+                                    }
+                                }
+                            }
+                        }
+                    };
                     System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
                     sw.Start();
                     while (true)
@@ -300,6 +335,7 @@ namespace ProxChatClientGUI
                             }
                             KeyService.TickKeys();
                         }
+                        //TODO: fix busy wait
                         while (sw.ElapsedMilliseconds < 16) { } //this busy wait allows some time for people to add more messages.
                         sw.Restart();
                     }
@@ -501,6 +537,30 @@ namespace ProxChatClientGUI
             {
                 model.SetMute(userId, muted);
             });
+        }
+
+        public string? PromptForLobbySecret()
+        {
+            string? secret = null;
+            DialogResult? res = null;
+            while (res != DialogResult.OK)
+            {
+                TextPopup popup = new TextPopup()
+                {
+                    InfoText = $"Enter the discord lobby secret (Ask server host) {(res == null ? "" : " (This is required)")}:",
+                    LabelText = "Enter the Lobby Secret"
+                };
+                res = popup.ShowDialog(this);
+                if (res == DialogResult.OK)
+                {
+                    secret = popup.InfoResult;
+                }
+                else if (res == DialogResult.Cancel)
+                {
+                    break; //"secret" gonna stay null
+                }
+            }
+            return secret;
         }
 
         private void OnChangeVolume(string username, byte newVolume)
