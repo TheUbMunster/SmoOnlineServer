@@ -161,6 +161,7 @@
             this.volumePercieved.Size = new System.Drawing.Size(238, 22);
             this.volumePercieved.Style = System.Windows.Forms.ProgressBarStyle.Continuous;
             this.volumePercieved.TabIndex = 5;
+            this.volumePercieved.Value = 100;
             // 
             // LobbyMember
             // 

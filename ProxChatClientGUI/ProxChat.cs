@@ -505,10 +505,11 @@ namespace ProxChatClientGUI
 
         private void OnChangeVolume(string username, byte newVolume)
         {
-            float percentage = ((float)newVolume) / Settings.Instance.VolumePrefs![username];
+            Settings.Instance.VolumePrefs![username] = newVolume;
+            Settings.SaveSettings();
             model.AddMessage(() =>
             {
-                model.RecalculateRealVolume(username, percentage);
+                model.RecalculateRealVolume(username, newVolume);
             });
         }
 
@@ -563,7 +564,7 @@ namespace ProxChatClientGUI
         }
 
         //call this as voiceprox vols change. (should be 100% if voiceprox is off).
-        public void PercievedVolumeChange(long userId, float percent)
+        public void SetPercievedVolume(long userId, float percent)
         {
             if (clientIdToDisplayIndex.ContainsKey(userId))
             {

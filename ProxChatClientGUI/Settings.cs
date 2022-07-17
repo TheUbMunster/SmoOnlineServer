@@ -67,7 +67,7 @@ public class Settings
     public ushort? ServerPort { get; set; } = 12000;
     public string? ServerHost { get; set; }
     public string? IngameName { get; set; }
-    public byte? DefaultVolume { get; set; } = 150;
+    public byte? DefaultVolume { get; set; } = 50;
     public VolumePreferences? VolumePrefs { get; private set; } = new VolumePreferences();
     /// <summary>
     /// //"Always On", "Push-To-Talk", "Push-To-Mute"

@@ -37,6 +37,7 @@ namespace ProxChatClientGUI
 
         private Dictionary<string, long> nameToId = new Dictionary<string, long>();
         private Dictionary<long, User> idToUser = new Dictionary<long, User>();
+        private Dictionary<long, float> idToVolPercent = new Dictionary<long, float>(); //what % of user pref vol should users be set to with SetLocalVol
 
         private ulong singleTicker = 0;
         private string lastSingleUsername = null!;
@@ -175,6 +176,7 @@ namespace ProxChatClientGUI
                 #region Self Event Subscription
                 lobbyManager.OnMemberConnect += (long lobbyId, long userId) =>
                 {
+                    idToVolPercent[userId] = 0f;
                     voiceManager.SetLocalVolume(userId, 0);
                     userManager.GetUser(userId, (Result res, ref User user) =>
                     {
@@ -192,14 +194,12 @@ namespace ProxChatClientGUI
                             byte vol = Settings.Instance.VolumePrefs![userName];
                             AddMessage(() =>
                             {
+                                idToVolPercent[userId] = 1f;
                                 voiceManager.SetLocalVolume(userId, vol);
                             });
-                            ProxChat.Instance.PercievedVolumeChange(userId, 1f);
+                            ProxChat.Instance.SetPercievedVolume(userId, 1f);
                         });
                         FetchImage(userId);
-                        //ProxChat.Instance.AddMessage(() =>
-                        //{
-                        //});
                     });
                 };
 
@@ -385,9 +385,10 @@ namespace ProxChatClientGUI
                                             byte finalVol = (byte)(fVol * Settings.Instance.VolumePrefs![username]);
                                             AddMessage(() =>
                                             {
+                                                idToVolPercent[userId] = fVol;
                                                 voiceManager.SetLocalVolume(userId, finalVol);
                                             });
-                                            ProxChat.Instance.PercievedVolumeChange(userId, fVol);
+                                            ProxChat.Instance.SetPercievedVolume(userId, fVol);
                                         });
 
                                         #region Old
@@ -443,9 +444,10 @@ namespace ProxChatClientGUI
                                         byte finalVol = (byte)(fVol * Settings.Instance.VolumePrefs![username]);
                                         AddMessage(() =>
                                         {
+                                            idToVolPercent[userId] = fVol;
                                             voiceManager.SetLocalVolume(userId, finalVol);
                                         });
-                                        ProxChat.Instance.PercievedVolumeChange(userId, fVol);
+                                        ProxChat.Instance.SetPercievedVolume(userId, fVol);
                                     });
 
                                     #region Old
@@ -526,10 +528,11 @@ namespace ProxChatClientGUI
                                                     byte vol = Settings.Instance.VolumePrefs![username];
                                                     AddMessage(() =>
                                                     {
+                                                        idToVolPercent[u.Id] = 1f;
                                                         voiceManager.SetLocalVolume(u.Id, vol);
                                                         modelLogger.Info($"Set {u.Username}#{u.Discriminator}'s volume to {vol}");
                                                     });
-                                                    ProxChat.Instance.PercievedVolumeChange(u.Id, 1f);
+                                                    ProxChat.Instance.SetPercievedVolume(u.Id, 1f);
                                                 });
                                                 FetchImage(u.Id);
                                             }
@@ -685,15 +688,14 @@ namespace ProxChatClientGUI
             }
         }
 
-        public void RecalculateRealVolume(string username, float percentage)
+        public void RecalculateRealVolume(string username, byte newVolume)
         {
             try
             {
-                byte origVol = voiceManager.GetLocalVolume(nameToId[username]);
-                byte newVol = (byte)(percentage * origVol);
-                newVol = (byte)(newVol < 0 ? 0 : (newVol > 200 ? 200 : newVol));
+                int newVol = (int)(idToVolPercent[nameToId[username]] * (int)newVolume);
+                newVol = (newVol < 0 ? 0 : (newVol > 200 ? 200 : newVol));
                 modelLogger.Info("Recalc'd a users volume to: " + newVol);
-                voiceManager.SetLocalVolume(nameToId[username], newVol);
+                voiceManager.SetLocalVolume(nameToId[username], (byte)newVol);
             }
             catch (Exception ex)
             {

@@ -158,6 +158,9 @@ namespace Server
         {
             pvcLogger.Info("A client disconnected");
             Peer p = netEvent.Peer;
+            //FIX ME
+            //p.ID was 0 in this expression, couldn't remove out of discordToPeer because (client timed out and p.ID was 0 which didn't match any of the peers ids?)
+            //Consider FirstOrDefault
             string discord = discordToPeer.First(x => x.Value.ID == p.ID).Key;
             discordToPeer.Remove(discord);
             OnClientDisconnect?.Invoke(discord);
