@@ -122,6 +122,19 @@ namespace ProxChatClientGUI
                     singleTicker = 0;
                     multiTicker = 0;
                     lastSingleUsername = null!;
+                    ProxChat.Instance.AddMessage(() =>
+                    {
+                        foreach (var user in idToUser)
+                        {
+                            if (user.Key != currentUser!.Value.Id)
+                            {
+                                ProxChat.Instance.RemoveMemberFromList(user.Key);
+                            }
+                        }
+                        ProxChat.Instance.SetCDCButton(true);
+                        ProxChat.Instance.SetCDCButtonEnabled(true);
+                        ProxChat.Instance.SetConnectionStatus(false);
+                    });
                     idToPic.Clear();
                     idToUser.Clear();
                     nameToId.Clear();
@@ -148,12 +161,6 @@ namespace ProxChatClientGUI
                                 lob = null;
                             });
                         }
-                    });
-                    ProxChat.Instance.AddMessage(() =>
-                    {
-                        ProxChat.Instance.SetCDCButton(true);
-                        ProxChat.Instance.SetCDCButtonEnabled(true);
-                        ProxChat.Instance.SetConnectionStatus(false);
                     });
                 };
                 #endregion
