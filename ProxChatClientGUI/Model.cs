@@ -247,7 +247,7 @@ namespace ProxChatClientGUI
                             {
                                 var action = messageQueue.Dequeue();
                                 modelLogger.Info(action.Method.Name);
-                                if (action.Method.Name.Contains("<.ctor>b__20"))
+                                if (action.Method.Name.Contains("<.ctor>b__20") || action.Method.Name.Contains("<.ctor>b__19"))
                                 {
                                     modelLogger.Info(action.Method.GetMethodBody()!.ToString() ?? "");
                                 }
@@ -586,12 +586,13 @@ namespace ProxChatClientGUI
 
         void HandleTimeoutEvent(ref Event netEvent)
         {
-            HandleDisconnectEvent(ref netEvent);
+            modelLogger.Warn($"Timeout from server, Code: {(netEvent.Data == 69420 ? "(You've been banned)." : netEvent.Data.ToString())}");
+            onServerDisconnect?.Invoke();
         }
 
         void HandleDisconnectEvent(ref Event netEvent)
         {
-            modelLogger.Error($"Server disconnected or timed out. Code: {(netEvent.Data == 69420 ? "(You've been banned)." : netEvent.Data.ToString())}");
+            modelLogger.Info($"Disconnect from server, Code: {(netEvent.Data == 69420 ? "(You've been banned)." : netEvent.Data.ToString())}");
             onServerDisconnect?.Invoke();
         }
 
@@ -642,10 +643,17 @@ namespace ProxChatClientGUI
 
         public void RecalculateRealVolume(string username, float percentage)
         {
-            byte origVol = voiceManager.GetLocalVolume(nameToId[username]);
-            byte newVol = (byte)(percentage * origVol);
-            newVol = (byte)(newVol < 0 ? 0 : (newVol > 200 ? 200 : newVol));
-            voiceManager.SetLocalVolume(nameToId[username], newVol);
+            try
+            {
+                byte origVol = voiceManager.GetLocalVolume(nameToId[username]);
+                byte newVol = (byte)(percentage * origVol);
+                newVol = (byte)(newVol < 0 ? 0 : (newVol > 200 ? 200 : newVol));
+                voiceManager.SetLocalVolume(nameToId[username], newVol);
+            }
+            catch (Exception ex)
+            {
+                modelLogger.Warn("Attempt to recalculate the volume of a user failed: " + ex.ToString());
+            }
         }
 
         public void SetMute(long userId, bool isMuted)
