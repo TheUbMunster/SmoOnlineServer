@@ -145,8 +145,15 @@ namespace ProxChatClientGUI
         public void SetPercievedVolumeLevel(float percent)
         {
             int val = (int)(percent * 100f);
+            val = val < 0 ? 0 : (val > 100 ? 100 : val);
             if (!volumePercieved.IsDisposed && !volumePercieved.Disposing)
-                volumePercieved.Value = val < 0 ? 0 : (val > 100 ? 100 : val);
+            {
+                //strange hack to get rid of the glow effect.
+                volumePercieved.Minimum = val;
+                volumePercieved.Value = volumePercieved.Minimum;
+                volumePercieved.Minimum = 0;
+                //volumePercieved.Value = val; //"correct" way
+            }
         }
 
         public void SetVolumeSlider(byte level)

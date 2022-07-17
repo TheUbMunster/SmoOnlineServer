@@ -122,13 +122,15 @@ namespace ProxChatClientGUI
                     singleTicker = 0;
                     multiTicker = 0;
                     lastSingleUsername = null!;
+                    IEnumerable<long> ids = idToUser.Keys; //closure capture this instead of the real dict
+                    ids.Any();
                     ProxChat.Instance.AddMessage(() =>
                     {
-                        foreach (var user in idToUser)
+                        foreach (long userId in ids)
                         {
-                            if (user.Key != currentUser!.Value.Id)
+                            if (userId != currentUser!.Value.Id)
                             {
-                                ProxChat.Instance.RemoveMemberFromList(user.Key);
+                                ProxChat.Instance.RemoveMemberFromList(userId);
                             }
                         }
                         ProxChat.Instance.SetCDCButton(true);
