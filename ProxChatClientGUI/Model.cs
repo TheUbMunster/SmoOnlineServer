@@ -212,6 +212,7 @@ namespace ProxChatClientGUI
                         ProxChat.Instance.AddMessage(() =>
                         {
                             ProxChat.Instance.PercievedVolumeChange(userId, 1f);
+                            ProxChat.Instance.PercievedVolumeChange(userId, 1f);
                         });
                     });
                 };
@@ -239,6 +240,10 @@ namespace ProxChatClientGUI
                             {
                                 var action = messageQueue.Dequeue();
                                 modelLogger.Info(action.Method.Name);
+                                if (action.Method.Name.Contains("<.ctor>b__20"))
+                                {
+                                    modelLogger.Info(action.Method.GetMethodBody()!.ToString() ?? "");
+                                }
                                 action();
                                 if (deferMessageLoop)
                                 {
@@ -480,7 +485,7 @@ namespace ProxChatClientGUI
                                         modelLogger.Info("Joined the lobby successfully.\n");
                                     }
                                     IEnumerable<User> users = lobbyManager.GetMemberUsers(lobby.Id);
-                                    modelLogger.Info("All users in the lobby: " +
+                                    modelLogger.Info("All users in the lobby:\n" +
                                         $"{string.Join(",\n", users.Select(x => $"{x.Id}: {x.Username}#{x.Discriminator}"))}\n");
                                     foreach (User u in users)
                                     {

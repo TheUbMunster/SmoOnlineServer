@@ -144,7 +144,7 @@ namespace ProxChatClientGUI
 
         public void SetPercievedVolumeLevel(float percent)
         {
-            int val = (int)percent;
+            int val = (int)(percent * 100f);
             if (!volumePercieved.IsDisposed && !volumePercieved.Disposing)
                 volumePercieved.Value = val < 0 ? 0 : (val > 100 ? 100 : val);
         }
