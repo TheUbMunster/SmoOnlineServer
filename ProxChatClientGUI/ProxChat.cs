@@ -401,6 +401,7 @@ namespace ProxChatClientGUI
                         lm.SetDirectButtonCallback((bool wasPressed) => OnPressDirectButton(userId, wasPressed));
                         lm.RemoveOtherUI();
                     }
+                    lm.SetPercievedVolumeVisible(Settings.Instance.PercievedVolumeSliderEnabled!.Value);
                     lm.Dock = DockStyle.Fill;
                     if (clientIdToDisplayIndex.Count == 0)
                     {

@@ -58,6 +58,7 @@ namespace ProxChatClientGUI
             serverHostTextBox.Text = Settings.Instance.ServerHost!;
             defaultVolumeTextBox.Text = Settings.Instance.DefaultVolume!.ToString();
             speakModeComboBox.SelectedItem = Settings.Instance.SpeakMode!;
+            percievedVolumeCheckBox.Checked = Settings.Instance.PercievedVolumeSliderEnabled!.Value;
             speakModeComboBox.SelectedValueChanged += (_, _) => SetActionLabel();
             try
             {
