@@ -148,7 +148,12 @@ server.PacketHandler = (c, p) =>
         case ShinePacket shinePacket:
             {
                 if (c.Metadata["loadedSave"] is false) break;
-                ConcurrentBag<int> playerBag = ((ConcurrentBag<int>)(c.Metadata["shineSync"] ??= new ConcurrentBag<int>())); //keynotfoundexception, added null assignment.
+                ConcurrentBag<int> playerBag;
+                //was throwing keynotfoundexception
+                if (c.Metadata.ContainsKey("shineSync"))
+                    playerBag = (ConcurrentBag<int>)c.Metadata["shineSync"];
+                else
+                    c.Metadata["shineSync"] = playerBag = new ConcurrentBag<int>();
                 shineBag.Add(shinePacket.ShineId);
                 if (playerBag.Contains(shinePacket.ShineId)) break;
                 c.Logger.Info($"Got moon {shinePacket.ShineId}");
