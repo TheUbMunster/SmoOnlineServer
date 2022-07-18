@@ -552,7 +552,7 @@ namespace ProxChatClientGUI
             {
                 TextPopup popup = new TextPopup()
                 {
-                    InfoText = $"Enter the discord lobby secret (Ask server host) {(res == null ? "" : " (This is required)")}:",
+                    InfoText = $"Enter the discord lobby secret (Ask server host){(res == null ? "" : " (This is required)")}:",
                     LabelText = "Enter the Lobby Secret"
                 };
                 res = popup.ShowDialog(this);
