@@ -39,12 +39,45 @@ namespace Server
         public event Action<string, string>? OnClientConnect; //discord, ingame
         public event Action<string>? OnClientDisconnect; //discord
 
+        private bool sendVolData = false;
         private Dictionary<string, string> igToDiscord = new Dictionary<string, string>(); //dont clear this ever
         private Dictionary<string, Vector3> igToPos = new Dictionary<string, Vector3>();
         private Dictionary<string, string?> igToStage = new Dictionary<string, string?>();
         private Dictionary<string, Dictionary<string, float?>> igToIgsToDirtyVols = new Dictionary<string, Dictionary<string, float?>>(); //null = dont change
         private Dictionary<string, Dictionary<string, float?>> igToIgsToLastSetVols = new Dictionary<string, Dictionary<string, float?>>();
         private Dictionary<string, Dictionary<string, ulong>> igToIgsToTickers = new Dictionary<string, Dictionary<string, ulong>>();
+
+        public void SetProxChatEnabled(bool enabled)
+        {
+            sendVolData = enabled;
+            if (!sendVolData)
+            {
+                //send nulls
+                SendNullVolInfo();
+            }
+        }
+
+        private void SendNullVolInfo()
+        {
+            foreach (var perspective in igToIgsToDirtyVols)
+            {
+                Dictionary<string, (float? volume, ulong ticker)> dict = new Dictionary<string, (float? volume, ulong ticker)>();
+                foreach (var kvp in igToDiscord)
+                {
+                    if (kvp.Value != perspective.Key)
+                        dict.Add(kvp.Value, (null, ++igToIgsToTickers[perspective.Key][kvp.Key]));
+                }
+                var packet = new PVCMultiDataPacket()
+                {
+                    Volumes = dict
+                };
+                string recip = perspective.Key;
+                AddMessage(() =>
+                {
+                    SendPacket(packet, recip);
+                });
+            }
+        }
 
         private void SendCachedVolInfo()
         {
@@ -65,7 +98,11 @@ namespace Server
                     {
                         Volumes = vols
                     };
-                    SendPacket(packet, perspective.Key);
+                    string recip = perspective.Key;
+                    AddMessage(() =>
+                    {
+                        SendPacket(packet, recip);
+                    });
                     igToIgsToDirtyVols[perspective.Key].Clear();
                 }
             }
@@ -268,7 +305,10 @@ namespace Server
                     {
                         Console.WriteLine($"Issue in message loop: {ex.ToString()}");
                     }
-                    SendCachedVolInfo();
+                    if (sendVolData)
+                    {
+                        SendCachedVolInfo();
+                    }
                 }
                 sw.Stop();
                 waitTime = frameTime - (int)sw.ElapsedMilliseconds;

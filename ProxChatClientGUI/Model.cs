@@ -411,7 +411,7 @@ namespace ProxChatClientGUI
                                     else
                                     {
                                         //cache for later
-                                        modelLogger.Warn("Could not set volume from multipacket for user because that user isn't set yet.");
+                                        modelLogger.Warn("Could not set volume from multipacket for user because that user isn't set yet. (Add volume caching feature)");
                                     }
                                 }
                             });

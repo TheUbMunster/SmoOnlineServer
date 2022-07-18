@@ -416,25 +416,30 @@ CommandHandler.RegisterCommand("voiceprox", args =>
 {
     if (args.Length == 0)
     {
-        return "Need to specify on or off. (Usage: voiceprox <on|off>)";
+        return "Voice proximity is currently " + (proxChat ? "enabled." : "disabled.");
     }
     else if (args.Length > 1)
     {
-        return "Too many arguments. (Usage: voiceprox <on|off>)";
+        return "Too many arguments. (Usage: voiceprox <optional: on|off>)";
     }
     switch (args[0])
     {
         case "on":
             proxChat = true;
             //set people's volumes
-            return "Turned voice proximity on.";
+            break;
         case "off":
             proxChat = false;
             //return everyone to full volume
-            return "Turned voice proximity off.";
+            break;
         default:
-            return "Usage: voiceprox <on|off>";
+            return "Usage: voiceprox <optional: on|off>";
     }
+    VoiceProxServer.Instance.AddMessage(() =>
+    {
+        VoiceProxServer.Instance.SetProxChatEnabled(proxChat);
+    });
+    return "Turned voice proximity " + (proxChat ? "on." : "off.");
 });
 
 CommandHandler.RegisterCommand("rejoin", args =>
