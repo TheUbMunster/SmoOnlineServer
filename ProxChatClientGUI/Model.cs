@@ -1,4 +1,6 @@
-﻿using System;
+﻿#define CIRCULAR_UI_IMAGES //makes this so that images loaded in the UI are circular (like discord)
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -11,17 +13,6 @@ namespace ProxChatClientGUI
 {
     internal class Model
     {
-        //public class PublicModelInfo
-        //{
-        //    public static PublicModelInfo Instance { get; private set; }
-        //    static PublicModelInfo()
-        //    {
-        //        Instance = new PublicModelInfo();
-        //    }
-        //    private PublicModelInfo() { }
-
-        //    //all data that the view can access should be put in here.
-        //}
         private object modelLock = new object();
         private Queue<Action> messageQueue = new Queue<Action>();
 
@@ -87,17 +78,34 @@ namespace ProxChatClientGUI
                     ProxChat.Instance.AddMessage(() =>
                     {
                         //rearrange pixel data
-                        for (int i = 0; i < data.Length; i += 4)
+                        for (int x = 0; x < width; x++)
                         {
-                            byte r = data[i];
-                            byte g = data[i + 1];
-                            byte b = data[i + 2];
-                            byte a = data[i + 3];
-
-                            data[i] = b;
-                            data[i + 1] = g;
-                            data[i + 2] = r;
-                            data[i + 3] = a;
+                            for (int y = 0; y < height; y++)
+                            {
+                                int i = (int)(x + (y * width)) * 4;
+                                byte r = data[i];
+                                byte g = data[i + 1];
+                                byte b = data[i + 2];
+                                byte a = data[i + 3];
+#if CIRCULAR_UI_IMAGES
+                                float xx = (((float)x / width) - 0.5f) * 2f;
+                                float yy = (((float)y / height) - 0.5f) * 2f;
+                                bool opaque = (xx * xx) + (yy * yy) < 1f;
+#else
+                                bool opaque = true;
+#endif
+                                if (opaque)
+                                {
+                                    data[i] = b;
+                                    data[i + 1] = g;
+                                    data[i + 2] = r;
+                                    data[i + 3] = a;
+                                }
+                                else
+                                {
+                                    data[i + 3] = (byte)0;
+                                }
+                            }
                         }
                         //set the image
                         ProxChat.Instance.SetUserImage(id, width, height, data);
@@ -146,9 +154,9 @@ namespace ProxChatClientGUI
                         DisconnectLobby();
                     });
                 };
-                #endregion
+#endregion
 
-                #region Setup
+#region Setup
                 Library.Initialize();
                 discord = new Discord.Discord(Constants.clientId, (UInt64)Discord.CreateFlags.Default);
                 lobbyManager = discord.GetLobbyManager();
@@ -173,9 +181,9 @@ namespace ProxChatClientGUI
                     discord.RunCallbacks();
                 }
                 userManager.OnCurrentUserUpdate -= upd; //if the user changes nick in the middle of a game it will mess things up.
-                #endregion
+#endregion
 
-                #region Self Event Subscription
+#region Self Event Subscription
                 lobbyManager.OnMemberConnect += (long lobbyId, long userId) =>
                 {
                     idToVolPercent[userId] = 0f;
@@ -222,9 +230,9 @@ namespace ProxChatClientGUI
                     modelLogger.Info("Discord VC lobby closed because: " + reason);
                     onServerDisconnect?.Invoke();
                 };
-                #endregion
+#endregion
 
-                #region Loop
+#region Loop
                 try
                 {
                     //System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
@@ -333,7 +341,7 @@ namespace ProxChatClientGUI
                     discord?.Dispose();
                     client?.Dispose();
                 }
-                #endregion
+#endregion
             });
         }
 
@@ -345,7 +353,7 @@ namespace ProxChatClientGUI
             }
         }
 
-        #region NetEvent Handlers
+#region NetEvent Handlers
         void HandleConnectEvent(ref Event netEvent)
         {
             modelLogger.Info("Client successfully connected to server.");
@@ -402,7 +410,7 @@ namespace ProxChatClientGUI
                                             ProxChat.Instance.SetPercievedVolume(userId, fVol);
                                         });
 
-                                        #region Old
+#region Old
                                         //if (vol == null)
                                         //{
                                         //    //default volume for this user.
@@ -430,7 +438,7 @@ namespace ProxChatClientGUI
                                         //        ProxChat.Instance.PercievedVolumeChange(nameToId[username], fvol);
                                         //    });
                                         //}
-                                        #endregion
+#endregion
                                     }
                                     multiTicker = multiPacket.Tick;
                                 } //else the multipacket is too old, no point in applying it
@@ -461,7 +469,7 @@ namespace ProxChatClientGUI
                                         ProxChat.Instance.SetPercievedVolume(userId, fVol);
                                     });
 
-                                    #region Old
+#region Old
                                     //if (vol == null)
                                     //{
                                     //    //default volume for this user.
@@ -488,7 +496,7 @@ namespace ProxChatClientGUI
                                     //        ProxChat.Instance.PercievedVolumeChange(nameToId[singlePacket.DiscordUsername], fvol);
                                     //    });
                                     //}
-                                    #endregion
+#endregion
                                 }
                             }
                         }
@@ -614,7 +622,7 @@ namespace ProxChatClientGUI
                 modelLogger.Warn($"Sendpacket failed on packet type {packet.PType}.");
             }
         }
-        #endregion
+#endregion
 
         public void SendWalkieTalkiePacket(long? directRecipientUserId, bool teamOnly)
         {
