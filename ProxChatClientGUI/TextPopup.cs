@@ -34,7 +34,7 @@ namespace ProxChatClientGUI
         public TextPopup()
         {
             InitializeComponent();
-            DialogResult = DialogResult.Abort;
+            DialogResult = DialogResult.None;
         }
 
         private void dataTextBox_TextChanged(object sender, EventArgs e)
@@ -45,13 +45,14 @@ namespace ProxChatClientGUI
         private void confirmButton_Click(object sender, EventArgs e)
         {
             InfoResult = infoRes;
+            Close();
             DialogResult = DialogResult.OK;
         }
 
         private void cancelButton_Click(object sender, EventArgs e)
         {
-            DialogResult = DialogResult.Cancel;
             Close();
+            DialogResult = DialogResult.Abort;
         }
     }
 }

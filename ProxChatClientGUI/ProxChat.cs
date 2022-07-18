@@ -162,7 +162,7 @@ namespace ProxChatClientGUI
                         Settings.Instance.ServerHost = popup.InfoResult;
                         Settings.SaveSettings();
                     }
-                    else if (res == DialogResult.Cancel)
+                    else if (res == DialogResult.Abort)
                     {
                         Load += (_, _) => Close();
                         return;
@@ -185,7 +185,7 @@ namespace ProxChatClientGUI
                         Settings.Instance.IngameName = popup.InfoResult;
                         Settings.SaveSettings();
                     }
-                    else if (res == DialogResult.Cancel)
+                    else if (res == DialogResult.Abort)
                     {
                         Load += (_, _) => Close();
                         return;
@@ -569,7 +569,7 @@ namespace ProxChatClientGUI
                 {
                     secret = popup.InfoResult;
                 }
-                else if (res == DialogResult.Cancel)
+                else if (res == DialogResult.Abort)
                 {
                     break; //"secret" gonna stay null
                 }
