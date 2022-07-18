@@ -421,6 +421,34 @@ CommandHandler.RegisterCommandAliases(args =>
 //});
 #endregion
 
+CommandHandler.RegisterCommandAliases(args =>
+{
+    if (args.Length == 0)
+    {
+        return $"beginheardist: {Settings.Instance.Discord.BeginHearingThreshold} fullheardist: {Settings.Instance.Discord.FullHearingThreshold}";
+    }
+    else if (args.Length == 2)
+    {
+        bool b = float.TryParse(args[0], out var beginHearingThreshold);
+        bool f = float.TryParse(args[1], out var fullHearingThreshold);
+        if (b && f && beginHearingThreshold > fullHearingThreshold)
+        {
+            Settings.Instance.Discord.FullHearingThreshold = fullHearingThreshold;
+            Settings.Instance.Discord.BeginHearingThreshold = beginHearingThreshold;
+            Settings.SaveSettings();
+            return $"The hearing thresholds were set. beginheardist: {beginHearingThreshold} fullheardist: {fullHearingThreshold}";
+        }
+        else
+        {
+            return "Usage: voiceproxdistances <optional (both or neither): beginheardist, fullheardist> (Make sure both are positive numbers and beginheardist > fullheardist.)";
+        }
+    }
+    else
+    {
+        return "Usage: voiceproxdistances <optional (both or neither): beginheardist, fullheardist>";
+    }
+}, "voiceproxdistances", "vpxd");
+
 CommandHandler.RegisterCommand("voiceprox", args =>
 {
     if (args.Length == 0)
@@ -866,49 +894,6 @@ AppDomain.CurrentDomain.ProcessExit += (_, e) =>
     DiscordBot.Instance.ClosePVCLobbyForQuit();
     cts.Cancel();
 };
-
-//VoiceProxServer.Instance.onMessageRecieved += data =>
-//{
-//    PVCClientHandshakePacket? handshake = System.Text.Json.JsonSerializer.Deserialize<PVCClientHandshakePacket>(new ReadOnlySpan<byte>(data));
-//    if (handshake != null)
-//    {
-//        if (handshake.IngameUsername != null && handshake.DiscordUsername != null)
-//        {
-//            igToDiscord[handshake.IngameUsername] = handshake.DiscordUsername;
-//        }
-//        else
-//            consoleLogger.Warn("PVC recieved handshake, but could not correlate ig to discord as both were not present.");
-//    }
-//};
-
-//VoiceProxServer.Instance.OnClientConnect += (discord, ingame) =>
-//{
-//    //Verify the fix for this works:
-//    //TODO: FIX RACE CONDITION Task.Run(Loop) from vps VS Main thread
-//    int before = igToDiscord.Count;
-//    lock (igToDiscord)
-//    {
-//        igToDiscord[ingame] = discord; 
-//    }
-//    if (igToDiscord.Count == 1 && before == 0)
-//    {
-//        DiscordBot.Instance.CloseThenOpenPVCLobby().ContinueWith((task) =>
-//        {
-//            VoiceProxServer.Instance.AddMessageToQueue(() =>
-//            {
-//                VoiceProxServer.Instance.SendLobbyPacketsToPending();
-//            });
-//        });
-//    }
-//};
-
-//VoiceProxServer.Instance.OnClientDisconnect += (discord) =>
-//{
-//    lock (igToDiscord)
-//    {
-//        igToDiscord.Remove(discord);
-//    }
-//};
 #endregion
 
 #region Input loop
