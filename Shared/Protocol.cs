@@ -37,8 +37,8 @@ namespace Shared
                     {
                         case (int)PVCPacket.PacketType.MultiData:
                             return jDoc.RootElement.Deserialize<PVCMultiDataPacket>();
-                        case (int)PVCPacket.PacketType.SingleData:
-                            return jDoc.RootElement.Deserialize<PVCSingleDataPacket>();
+                        //case (int)PVCPacket.PacketType.SingleData:
+                        //    return jDoc.RootElement.Deserialize<PVCSingleDataPacket>();
                         case (int)PVCPacket.PacketType.WalkieTalkie:
                             return jDoc.RootElement.Deserialize<PVCWalkieTalkiePacket>();
                         case (int)PVCPacket.PacketType.ClientHandshake:

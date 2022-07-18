@@ -95,7 +95,7 @@ public class DiscordBot {
     /// <summary>
     /// Note: *Only* call this when quitting the program
     /// </summary>
-    public void ClosePVCLobby()
+    public void ClosePVCLobbyForQuit()
     {
         lock (lobbyLock)
         {

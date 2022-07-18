@@ -11,7 +11,7 @@ namespace Shared
         public enum PacketType
         {
             MultiData = 1,
-            SingleData,
+            //SingleData,
             WalkieTalkie,
             ClientHandshake,
             Lobby,
@@ -21,46 +21,16 @@ namespace Shared
         public PacketType PType { get; private protected init; }
     }
 
-    public abstract class PVCDataPacket : PVCPacket
+    public class PVCMultiDataPacket : PVCPacket
     {
-        protected static ulong MultiTicker = 0;
-        protected static ulong SingleTicker = 0;
-    }
-
-    public class PVCMultiDataPacket : PVCDataPacket
-    {
-        //need per-user ticking because if one multi is made with users 1 and 2,
-        //then another multi is made with 3 and 4, and the second one arrives first,
-        //it will be set, but the first one will be ignored (even though they don't conflict)
-        //(This change will mean unifying single & multi ticking)
-
-        //TODO: verify correctness of ticker handling
-        //Ticker handling: if Tick is higher than saved tick for this packet genre, then:
-        //  if SingleTick is higher than the saved single tick, overwrite all
-        //  else overwrite all except the user specified by the last single packet.
-        public ulong Tick { get; init; } = MultiTicker++; //client should obey the packet with the highest tick number
-        public ulong SingleTick { get; init; } = SingleTicker;
-        public Dictionary<string, byte?> Volumes { get; } = new Dictionary<string, byte?>();
+        //because udp doesn't guarantee order, ticker is a value indicating when the value was generated.
+        //this is used by the client to make sure that if it tries to set the volume of a user, it isn't
+        //outdated.
+        public Dictionary<string, (float? volume, ulong ticker)> Volumes { get; set; } = null!;
 
         public PVCMultiDataPacket()
         {
             PType = PacketType.MultiData;
-        }
-    }
-
-    public class PVCSingleDataPacket : PVCDataPacket
-    {
-        //Ticker handling: if Tick is higher than saved tick for this packet genre, then:
-        //  if MultiTick is higher than the saved multi tick, overwrite
-        //  else ignore packet
-        public ulong Tick { get; init; } = SingleTicker++; //client should obey the packet with the highest tick number
-        public ulong MultiTick { get; init; } = MultiTicker;
-        public string DiscordUsername { get; set; } = null!;
-        public byte? Volume { get; set; } = null;
-
-        public PVCSingleDataPacket()
-        {
-            PType = PacketType.SingleData;
         }
     }
 

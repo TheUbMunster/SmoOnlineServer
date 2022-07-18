@@ -9,9 +9,9 @@ using Timer = System.Timers.Timer;
 
 
 bool proxChat = false; //off by default.
-Dictionary<Client, (Vector3 pos, byte? scen, string? stage)> clientPositionCorrelate = new Dictionary<Client, (Vector3, byte?, string?)>();
-Dictionary<Client, Dictionary<Client, float>> playerVolumes = new Dictionary<Client, Dictionary<Client, float>>(); //volume [0f : 0% - 1f : 100%]
-Dictionary<string, string> igToDiscord = new Dictionary<string, string>(); //ingame -> discord
+//Dictionary<Client, (Vector3 pos, byte? scen, string? stage)> clientPositionCorrelate = new Dictionary<Client, (Vector3, byte?, string?)>();
+//Dictionary<Client, Dictionary<Client, float>> playerVolumes = new Dictionary<Client, Dictionary<Client, float>>(); //volume [0f : 0% - 1f : 100%]
+//Dictionary<string, string> igToDiscord = new Dictionary<string, string>(); //ingame -> discord
 
 Server.Server server = new Server.Server();
 HashSet<int> shineBag = new HashSet<int>();
@@ -160,6 +160,8 @@ server.PacketHandler = (c, p) =>
                 playerPacket.Rotation *= Quaternion.CreateFromRotationMatrix(Matrix4x4.CreateRotationX(MathF.PI))
                                          * Quaternion.CreateFromRotationMatrix(Matrix4x4.CreateRotationY(MathF.PI));
                 server.Broadcast(playerPacket, c);
+                string? stage = c.Metadata.ContainsKey("lastGamePacket") ? ((GamePacket?)c.Metadata["lastGamePacket"])?.Stage : null;
+                VoiceProxServer.Instance.OnPlayerUpdate(c.Name, playerPacket.Position, stage);
                 return false;
             }
         case PlayerPacket playerPacket when Settings.Instance.Flip.Enabled
@@ -177,9 +179,9 @@ server.PacketHandler = (c, p) =>
 
                     to.Send(sp, from);
                 });
-                byte? scen = c.Metadata.ContainsKey("scenario") ? (byte?)c.Metadata["scenario"] : null;
                 string? stage = c.Metadata.ContainsKey("lastGamePacket") ? ((GamePacket?)c.Metadata["lastGamePacket"])?.Stage : null;
-                UpdateProxChatDataForPlayer(c, (playerPacket.Position, scen, stage)); //this might also need to be in the other playerPacket case?
+                VoiceProxServer.Instance.OnPlayerUpdate(c.Name, playerPacket.Position, stage);
+                //UpdateProxChatDataForPlayer(c, (playerPacket.Position, scen, stage)); //this might also need to be in the other playerPacket case?
                 return false;
             }
 
@@ -188,92 +190,93 @@ server.PacketHandler = (c, p) =>
     return true;
 };
 
-
+#region Old ProxChat data calc
 //TODO: Migrate this to VoiceProxServer.cs
-void UpdateProxChatDataForPlayer(Client c, (Vector3 playerPos, byte? scen, string? stage) playerInfo)
-{
-    clientPositionCorrelate[c] = playerInfo;
-    bool forceSendVolData = false;
+//void UpdateProxChatDataForPlayer(Client c, (Vector3 playerPos, byte? scen, string? stage) playerInfo)
+//{
+//    clientPositionCorrelate[c] = playerInfo;
+//    bool forceSendVolData = false;
 
-    if (!playerVolumes.ContainsKey(c)) //this client hasn't been entered yet
-    {
-        playerVolumes.Add(c, new Dictionary<Client, float>()); //this client's personal dictionary for other client local volumes.
-        //O(playercount)
-        foreach (Client cc in server.Clients)
-        {
-            if (!playerVolumes.ContainsKey(cc))
-            {
-                playerVolumes[cc] = new Dictionary<Client, float>();
-            }
-            if (cc != c)
-            {
-                //my perspective of other players
-                playerVolumes[c][cc] = 0f; //muted by default. (only applies when voiceprox is on).
-                //other players for me
-                playerVolumes[cc][c] = 0f; //"" ""
-            }
-        }
-        forceSendVolData = true; //because this user is new we need to mute everyone for them and mute them for everyone.
-    }
+//    if (!playerVolumes.ContainsKey(c)) //this client hasn't been entered yet
+//    {
+//        playerVolumes.Add(c, new Dictionary<Client, float>()); //this client's personal dictionary for other client local volumes.
+//        //O(playercount)
+//        foreach (Client cc in server.Clients)
+//        {
+//            if (!playerVolumes.ContainsKey(cc))
+//            {
+//                playerVolumes[cc] = new Dictionary<Client, float>();
+//            }
+//            if (cc != c)
+//            {
+//                //my perspective of other players
+//                playerVolumes[c][cc] = 0f; //muted by default. (only applies when voiceprox is on).
+//                //other players for me
+//                playerVolumes[cc][c] = 0f; //"" ""
+//            }
+//        }
+//        forceSendVolData = true; //because this user is new we need to mute everyone for them and mute them for everyone.
+//    }
 
-    //TODO: load from config and/or make editable with a command.
-    const float beginHearingThreshold = 3500f; //how far away other people are when you just barely start to hear them.
-    const float fullHearingThreshold = 750f; //players within this distance are max volume.
-    const float soundEpsilon = 0.005f; //if change in volume is lower than this amount, then don't bother changing it.
+//    //TODO: load from config and/or make editable with a command.
+//    const float beginHearingThreshold = 3500f; //how far away other people are when you just barely start to hear them.
+//    const float fullHearingThreshold = 750f; //players within this distance are max volume.
+//    const float soundEpsilon = 0.005f; //if change in volume is lower than this amount, then don't bother changing it.
 
-    float ClampedInvLerp(float a, float b, float v)
-    {
-        return v < a ? 0 : (v > b ? 1 : (v - a) / (b - a)); //see "linear interpolation"
-    }
+//    float ClampedInvLerp(float a, float b, float v)
+//    {
+//        return v < a ? 0 : (v > b ? 1 : (v - a) / (b - a)); //see "linear interpolation"
+//    }
 
-    PVCMultiDataPacket mainClient = new PVCMultiDataPacket();
-    //O(playerCount)
-    var c1 = clientPositionCorrelate[c];
-    lock (igToDiscord) //prevent modification by pvc server
-    {
-        foreach (var c2 in clientPositionCorrelate)
-        {
-            if (c == c2.Key)
-                continue;
-            bool significantVolChange = false;
-            float dist = Vector3.Distance(c1.pos, c2.Value.pos);
-            float vol = 1f - ClampedInvLerp(fullHearingThreshold, beginHearingThreshold, dist);
-            //may or may not want this
-            vol *= vol; //to linearize volume (which humans interpret logarithmically), we use exp to inverse and linearize. x^2 is cheap and close enough.
-            if (Math.Abs(vol - playerVolumes[c][c2.Key]) > soundEpsilon)
-            {
-                if (/*c1.scen == c2.Value.scen && */c1.stage == c2.Value.stage /*&& c1.scen != null*/ && c1.stage != null)
-                {
-                    playerVolumes[c][c2.Key] = vol;
-                    playerVolumes[c2.Key][c] = vol;
-                }
-                else
-                {
-                    playerVolumes[c][c2.Key] = 0f;
-                    playerVolumes[c2.Key][c] = 0f;
-                }
-                significantVolChange = true;
-            }
-            //cache data to send.
-            if ((igToDiscord.ContainsKey(c.Name) && igToDiscord.ContainsKey(c2.Key.Name)) && (forceSendVolData || significantVolChange))
-            {
-                mainClient.Volumes[igToDiscord[c2.Key.Name]] = proxChat ? (byte)(100 * playerVolumes[c][c2.Key]) : null;
-                //bot.ChangeVolume(igToDiscord[c.Name], igToDiscord[c2.Key.Name], proxChat ? playerVolumes[c][c2.Key] : null);
-                var packet = new PVCSingleDataPacket();
-                packet.Volume = proxChat ? (byte)(100 * playerVolumes[c2.Key][c]) : null;
-                packet.DiscordUsername = igToDiscord[c.Name];
+//    PVCMultiDataPacket mainClient = new PVCMultiDataPacket();
+//    //O(playerCount)
+//    var c1 = clientPositionCorrelate[c];
+//    lock (igToDiscord) //prevent modification by pvc server
+//    {
+//        foreach (var c2 in clientPositionCorrelate)
+//        {
+//            if (c == c2.Key)
+//                continue;
+//            bool significantVolChange = false;
+//            float dist = Vector3.Distance(c1.pos, c2.Value.pos);
+//            float vol = 1f - ClampedInvLerp(fullHearingThreshold, beginHearingThreshold, dist);
+//            //may or may not want this
+//            vol *= vol; //to linearize volume (which humans interpret logarithmically), we use exp to inverse and linearize. x^2 is cheap and close enough.
+//            if (Math.Abs(vol - playerVolumes[c][c2.Key]) > soundEpsilon)
+//            {
+//                if (/*c1.scen == c2.Value.scen && */c1.stage == c2.Value.stage /*&& c1.scen != null*/ && c1.stage != null)
+//                {
+//                    playerVolumes[c][c2.Key] = vol;
+//                    playerVolumes[c2.Key][c] = vol;
+//                }
+//                else
+//                {
+//                    playerVolumes[c][c2.Key] = 0f;
+//                    playerVolumes[c2.Key][c] = 0f;
+//                }
+//                significantVolChange = true;
+//            }
+//            //cache data to send.
+//            if ((igToDiscord.ContainsKey(c.Name) && igToDiscord.ContainsKey(c2.Key.Name)) && (forceSendVolData || significantVolChange))
+//            {
+//                mainClient.Volumes[igToDiscord[c2.Key.Name]] = proxChat ? (byte)(100 * playerVolumes[c][c2.Key]) : null;
+//                //bot.ChangeVolume(igToDiscord[c.Name], igToDiscord[c2.Key.Name], proxChat ? playerVolumes[c][c2.Key] : null);
+//                var packet = new PVCSingleDataPacket();
+//                packet.Volume = proxChat ? (byte)(100 * playerVolumes[c2.Key][c]) : null;
+//                packet.DiscordUsername = igToDiscord[c.Name];
 
-                //send "packet"
+//                //send "packet"
 
-                VoiceProxServer.Instance.SendPacket(packet, igToDiscord[c2.Key.Name]);
-                //bot.ChangeVolume(igToDiscord[c2.Key.Name], igToDiscord[c.Name], proxChat ? playerVolumes[c2.Key][c] : null);
-            }
-        }
-        //send "mainClient"
+//                VoiceProxServer.Instance.SendPacket(packet, igToDiscord[c2.Key.Name]);
+//                //bot.ChangeVolume(igToDiscord[c2.Key.Name], igToDiscord[c.Name], proxChat ? playerVolumes[c2.Key][c] : null);
+//            }
+//        }
+//        //send "mainClient"
 
-        VoiceProxServer.Instance.SendPacket(mainClient, igToDiscord[c.Name]);
-    }
-}
+//        VoiceProxServer.Instance.SendPacket(mainClient, igToDiscord[c.Name]);
+//    }
+//}
+#endregion
 
 
 
@@ -827,7 +830,7 @@ CommandHandler.RegisterCommand("loadsettings", _ =>
 
 CommandHandler.RegisterCommandAliases(_ =>
 {
-    DiscordBot.Instance.ClosePVCLobby();
+    DiscordBot.Instance.ClosePVCLobbyForQuit();
     cts.Cancel();
     return "Shutting down";
 }, "exit", "quit", "q");
@@ -838,7 +841,7 @@ Console.CancelKeyPress += (_, e) =>
 {
     e.Cancel = true;
     consoleLogger.Info("Received Ctrl+C");
-    DiscordBot.Instance.ClosePVCLobby();
+    DiscordBot.Instance.ClosePVCLobbyForQuit();
     cts.Cancel();
 };
 
@@ -856,34 +859,34 @@ Console.CancelKeyPress += (_, e) =>
 //    }
 //};
 
-VoiceProxServer.Instance.OnClientConnect += (discord, ingame) =>
-{
-    //Verify the fix for this works:
-    //TODO: FIX RACE CONDITION Task.Run(Loop) from vps VS Main thread
-    int before = igToDiscord.Count;
-    lock (igToDiscord)
-    {
-        igToDiscord[ingame] = discord; 
-    }
-    if (igToDiscord.Count == 1 && before == 0)
-    {
-        DiscordBot.Instance.CloseThenOpenPVCLobby().ContinueWith((task) =>
-        {
-            VoiceProxServer.Instance.AddMessageToQueue(() =>
-            {
-                VoiceProxServer.Instance.SendLobbyPacketsToPending();
-            });
-        });
-    }
-};
+//VoiceProxServer.Instance.OnClientConnect += (discord, ingame) =>
+//{
+//    //Verify the fix for this works:
+//    //TODO: FIX RACE CONDITION Task.Run(Loop) from vps VS Main thread
+//    int before = igToDiscord.Count;
+//    lock (igToDiscord)
+//    {
+//        igToDiscord[ingame] = discord; 
+//    }
+//    if (igToDiscord.Count == 1 && before == 0)
+//    {
+//        DiscordBot.Instance.CloseThenOpenPVCLobby().ContinueWith((task) =>
+//        {
+//            VoiceProxServer.Instance.AddMessageToQueue(() =>
+//            {
+//                VoiceProxServer.Instance.SendLobbyPacketsToPending();
+//            });
+//        });
+//    }
+//};
 
-VoiceProxServer.Instance.OnClientDisconnect += (discord) =>
-{
-    lock (igToDiscord)
-    {
-        igToDiscord.Remove(discord);
-    }
-};
+//VoiceProxServer.Instance.OnClientDisconnect += (discord) =>
+//{
+//    lock (igToDiscord)
+//    {
+//        igToDiscord.Remove(discord);
+//    }
+//};
 #endregion
 
 #region Input loop

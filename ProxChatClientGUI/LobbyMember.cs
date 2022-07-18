@@ -198,27 +198,31 @@ namespace ProxChatClientGUI
         #region Callbacks
         private void volumeSlider_MouseUp(object sender, MouseEventArgs e)
         {
-            lobbyMemberLogger.Info("OnMouseUp");
+            lobbyMemberLogger.Info("Sending volume to setvolume callback...");
             volumeCallback?.Invoke((byte)volumeSlider.Value);
         }
 
         private void directSpeakButton_Click(object sender, MouseEventArgs e)
         {
+            lobbyMemberLogger.Info("Sending callback to direct speak to " + usernameLabel.Text);
             directCallback?.Invoke(true);
         }
 
         private void directSpeakButton_Release(object sender, MouseEventArgs e)
         {
+            lobbyMemberLogger.Info("Sending callback to no longer direct speak to " + usernameLabel.Text);
             directCallback?.Invoke(false);
         }
 
         private void muteButton_Click(object sender, EventArgs e)
         {
+            lobbyMemberLogger.Info("Clicked mute button, " + !Muted);
             Muted = !Muted;
         }
 
         private void deafenButton_Click(object sender, EventArgs e)
         {
+            lobbyMemberLogger.Info("Clicked deaf button, " + !Deaf);
             Deaf = !Deaf;
         }
         #endregion

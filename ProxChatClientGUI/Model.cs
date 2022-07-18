@@ -31,9 +31,10 @@ namespace ProxChatClientGUI
         private Dictionary<long, User> idToUser = new Dictionary<long, User>();
         private Dictionary<long, float> idToVolPercent = new Dictionary<long, float>(); //what % of user pref vol should users be set to with SetLocalVol
 
-        private ulong singleTicker = 0;
-        private string lastSingleUsername = null!;
-        private ulong multiTicker = 0;
+        //private ulong singleTicker = 0;
+        //private string lastSingleUsername = null!;
+        //private ulong multiTicker = 0;
+        private Dictionary<long, ulong> idToTicker = new Dictionary<long, ulong>();
 
         private string ingameUsername;
 
@@ -113,7 +114,7 @@ namespace ProxChatClientGUI
                 };
 
                 onServerConnect += () =>
-                { //TODO: make this only happen upon successful connection to the lobby
+                { 
                     ProxChat.Instance.AddMessage(() =>
                     {
                         ProxChat.Instance.SetCDCButtonEnabled(true);
@@ -124,10 +125,7 @@ namespace ProxChatClientGUI
 
                 onServerDisconnect += () =>
                 {
-                    //TODO: CLEAR OUT OLD DATA (Make sure this is correct)
-                    singleTicker = 0;
-                    multiTicker = 0;
-                    lastSingleUsername = null!;
+                    idToTicker.Clear();
                     List<long> ids = new List<long>(idToUser.Keys); //closure capture this instead of the real dict
                     ProxChat.Instance.AddMessage(() =>
                     {
@@ -312,7 +310,7 @@ namespace ProxChatClientGUI
                             Thread.Sleep(waitTime); //simulate the waiting done by service
                             sw.Restart();
                         }
-                        discord.RunCallbacks();
+                        discord.RunCallbacks(); //TODO: make all callbacks add to the message loop
                         lock (modelLock)
                         {
                             while (messageQueue.Count > 0)
@@ -386,119 +384,37 @@ namespace ProxChatClientGUI
                             //FIX TODO: race condition nameToId might not have the entry yet.
                             AddMessage(() =>
                             {
-                                if (multiPacket.Tick > multiTicker)
+                                foreach (var kvp in multiPacket.Volumes)
                                 {
-                                    foreach (var pair in multiPacket.Volumes)
+                                    if (nameToId.ContainsKey(kvp.Key))
                                     {
-                                        if (multiPacket.SingleTick < singleTicker && lastSingleUsername == pair.Key)
+                                        if (!idToTicker.ContainsKey(nameToId[kvp.Key]))
+                                            idToTicker[nameToId[kvp.Key]] = 0;
+                                        if (kvp.Value.ticker > idToTicker[nameToId[kvp.Key]])
                                         {
-                                            //don't overwrite the last single, because the last single was newer than this multi.
-                                            continue;
-                                        }
-                                        byte? vol = pair.Value;
-                                        string username = pair.Key;
-                                        long userId = nameToId[username];
-                                        ProxChat.Instance.AddMessage(() =>
-                                        {
-                                            float fVol = vol.HasValue ? (vol.Value / 100f) : 1f;
-                                            byte finalVol = (byte)(fVol * Settings.Instance.VolumePrefs![username]);
-                                            AddMessage(() =>
+                                            float percentVol = kvp.Value.volume ?? 1f;
+                                            string username = kvp.Key;
+                                            long userId = nameToId[username];
+                                            ProxChat.Instance.AddMessage(() =>
                                             {
-                                                idToVolPercent[userId] = fVol;
-                                                voiceManager.SetLocalVolume(userId, finalVol);
+                                                byte finalVol = (byte)(percentVol * Settings.Instance.VolumePrefs![username]);
+                                                AddMessage(() =>
+                                                {
+                                                    idToVolPercent[userId] = percentVol;
+                                                    voiceManager.SetLocalVolume(userId, finalVol);
+                                                });
+                                                ProxChat.Instance.SetPercievedVolume(userId, percentVol);
                                             });
-                                            ProxChat.Instance.SetPercievedVolume(userId, fVol);
-                                        });
-
-#region Old
-                                        //if (vol == null)
-                                        //{
-                                        //    //default volume for this user.
-                                        //    ProxChat.Instance.AddMessage(() =>
-                                        //    {
-                                        //        byte vol = Settings.Instance.VolumePrefs![pair.Key];
-                                        //        AddMessage(() =>
-                                        //        {
-                                        //            voiceManager.SetLocalVolume(nameToId[pair.Key], vol);
-                                        //        });
-                                        //        ProxChat.Instance.PercievedVolumeChange(nameToId[pair.Key], 1f);
-                                        //    });
-                                        //}
-                                        //else
-                                        //{
-                                        //    float fvol = (vol.Value / 100f);
-                                        //    string username = pair.Key;
-                                        //    ProxChat.Instance.AddMessage(() =>
-                                        //    {
-                                        //        byte finalVolume = (byte)(fvol * Settings.Instance.VolumePrefs![username]);
-                                        //        AddMessage(() =>
-                                        //        {
-                                        //            voiceManager.SetLocalVolume(nameToId[username], finalVolume);
-                                        //        });
-                                        //        ProxChat.Instance.PercievedVolumeChange(nameToId[username], fvol);
-                                        //    });
-                                        //}
-#endregion
+                                        }
+                                        //else the volume data for this user is outdated.
                                     }
-                                    multiTicker = multiPacket.Tick;
-                                } //else the multipacket is too old, no point in applying it
-                            });
-                        }
-                        break;
-                    case PVCSingleDataPacket singlePacket:
-                        {
-                            //FIX TODO: race condition nameToId might not have the entry yet.
-                            if (singlePacket.Tick > singleTicker) //only accept if newer
-                            {
-                                if (singlePacket.MultiTick >= multiTicker) //only overwrite if newer than last multi we received.
-                                {
-                                    lastSingleUsername = singlePacket.DiscordUsername;
-                                    singleTicker = singlePacket.Tick;
-                                    byte? vol = singlePacket.Volume;
-                                    string username = singlePacket.DiscordUsername;
-                                    long userId = nameToId[username];
-                                    ProxChat.Instance.AddMessage(() =>
+                                    else
                                     {
-                                        float fVol = vol.HasValue ? (vol.Value / 100f) : 1f;
-                                        byte finalVol = (byte)(fVol * Settings.Instance.VolumePrefs![username]);
-                                        AddMessage(() =>
-                                        {
-                                            idToVolPercent[userId] = fVol;
-                                            voiceManager.SetLocalVolume(userId, finalVol);
-                                        });
-                                        ProxChat.Instance.SetPercievedVolume(userId, fVol);
-                                    });
-
-#region Old
-                                    //if (vol == null)
-                                    //{
-                                    //    //default volume for this user.
-                                    //    ProxChat.Instance.AddMessage(() =>
-                                    //    {
-                                    //        byte vol = Settings.Instance.VolumePrefs![singlePacket.DiscordUsername];
-                                    //        AddMessage(() =>
-                                    //        {
-                                    //            voiceManager.SetLocalVolume(nameToId[singlePacket.DiscordUsername], vol);
-                                    //        });
-                                    //        ProxChat.Instance.PercievedVolumeChange(nameToId[singlePacket.DiscordUsername], 1f);
-                                    //    });
-                                    //}
-                                    //else
-                                    //{
-                                    //    float fvol = (vol.Value / 100f);
-                                    //    ProxChat.Instance.AddMessage(() =>
-                                    //    {
-                                    //        byte finalVolume = (byte)(fvol * Settings.Instance.VolumePrefs![singlePacket.DiscordUsername]);
-                                    //        AddMessage(() =>
-                                    //        {
-                                    //            voiceManager.SetLocalVolume(nameToId[singlePacket.DiscordUsername], finalVolume);
-                                    //        });
-                                    //        ProxChat.Instance.PercievedVolumeChange(nameToId[singlePacket.DiscordUsername], fvol);
-                                    //    });
-                                    //}
-#endregion
+                                        //cache for later
+                                        modelLogger.Warn("Could not set volume from multipacket for user because that user isn't set yet.");
+                                    }
                                 }
-                            }
+                            });
                         }
                         break;
                     case PVCClientHandshakePacket handshakePacket:
@@ -517,7 +433,6 @@ namespace ProxChatClientGUI
                             if (lobPack.Secret != null)
                             {
                                 DCConnectToLobby(lobPack.LobbyId, lobPack.Secret!);
-                                onServerConnect?.Invoke();
                             }
                             else
                             {
@@ -529,8 +444,10 @@ namespace ProxChatClientGUI
                                         if (maybeSecret != null)
                                         {
                                             lobPack!.Secret = maybeSecret;
-                                            DCConnectToLobby(lobPack.LobbyId, lobPack.Secret!);
-                                            onServerConnect?.Invoke();
+                                            AddMessage(() =>
+                                            {
+                                                DCConnectToLobby(lobPack.LobbyId, lobPack.Secret!);
+                                            });
                                         }
                                         else
                                         {
@@ -655,6 +572,14 @@ namespace ProxChatClientGUI
                         if (res != Result.Ok)
                         {
                             modelLogger.Info("Something went wrong when joining the lobby.");
+                            //set ui back because it failed
+                            AddMessage(() =>
+                            {
+                                requestDisconnect = true;
+                            });
+                            ProxChat.Instance.SetCDCButtonEnabled(true);
+                            ProxChat.Instance.SetCDCButton(true);
+                            ProxChat.Instance.SetConnectionStatus(false);
                             return;
                         }
                         else
@@ -664,9 +589,10 @@ namespace ProxChatClientGUI
                         IEnumerable<User> users = lobbyManager.GetMemberUsers(lobby.Id);
                         modelLogger.Info("All users in the lobby:\n" +
                             $"{string.Join(",\n", users.Select(x => $"{x.Id}: {x.Username}#{x.Discriminator}"))}");
+                        long currId = currentUser!.Value.Id;
                         ProxChat.Instance.AddMessage(() =>
                         {
-                            var lm = ProxChat.Instance.GetLobbyMemberUI(currentUser!.Value.Id);
+                            var lm = ProxChat.Instance.GetLobbyMemberUI(currId);
                             lm.Muted = lm.Muted;
                             lm.Deaf = lm.Deaf;
                         });
@@ -674,23 +600,26 @@ namespace ProxChatClientGUI
                         {
                             if (u.Id != currentUser!.Value.Id)
                             {
-                                idToUser[u.Id] = u;
-                                string username = u.Username + "#" + u.Discriminator;
-                                nameToId[username] = u.Id;
-                                voiceManager.SetLocalMute(u.Id, false);
-                                onUserConnect?.Invoke(u.Id);
-                                ProxChat.Instance.AddMessage(() =>
+                                AddMessage(() =>
                                 {
-                                    byte vol = Settings.Instance.VolumePrefs![username];
-                                    AddMessage(() =>
+                                    idToUser[u.Id] = u;
+                                    string username = u.Username + "#" + u.Discriminator;
+                                    nameToId[username] = u.Id;
+                                    voiceManager.SetLocalMute(u.Id, false);
+                                    onUserConnect?.Invoke(u.Id);
+                                    ProxChat.Instance.AddMessage(() =>
                                     {
-                                        idToVolPercent[u.Id] = 1f;
-                                        voiceManager.SetLocalVolume(u.Id, vol);
-                                        modelLogger.Info($"Set {u.Username}#{u.Discriminator}'s volume to {vol}");
+                                        byte vol = Settings.Instance.VolumePrefs![username];
+                                        AddMessage(() =>
+                                        {
+                                            idToVolPercent[u.Id] = 1f;
+                                            voiceManager.SetLocalVolume(u.Id, vol);
+                                            modelLogger.Info($"Set {u.Username}#{u.Discriminator}'s volume to {vol}");
+                                        });
+                                        ProxChat.Instance.SetPercievedVolume(u.Id, 1f);
                                     });
-                                    ProxChat.Instance.SetPercievedVolume(u.Id, 1f);
+                                    FetchImage(u.Id);
                                 });
-                                FetchImage(u.Id);
                             }
                         }
 
@@ -708,6 +637,10 @@ namespace ProxChatClientGUI
                         lobbyManager.ConnectNetwork(lobby.Id);
                         lobbyManager.OpenNetworkChannel(lobby.Id, 0, true);
                         lob = lobby;
+                        AddMessage(() =>
+                        {
+                            onServerConnect?.Invoke();
+                        });
                     });
                 });
             });

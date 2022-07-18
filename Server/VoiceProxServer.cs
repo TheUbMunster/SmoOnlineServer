@@ -7,6 +7,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text.RegularExpressions;
 using System.Text.Json;
+using System.Numerics;
 using System.Runtime.InteropServices;
 using ENet;
 using Shared;
@@ -37,6 +38,108 @@ namespace Server
 
         public event Action<string, string>? OnClientConnect; //discord, ingame
         public event Action<string>? OnClientDisconnect; //discord
+
+        private Dictionary<string, string> igToDiscord = new Dictionary<string, string>(); //dont clear this ever
+        private Dictionary<string, Vector3> igToPos = new Dictionary<string, Vector3>();
+        private Dictionary<string, string?> igToStage = new Dictionary<string, string?>();
+        private Dictionary<string, Dictionary<string, float?>> igToIgsToDirtyVols = new Dictionary<string, Dictionary<string, float?>>(); //null = dont change
+        private Dictionary<string, Dictionary<string, float?>> igToIgsToLastSetVols = new Dictionary<string, Dictionary<string, float?>>();
+        private Dictionary<string, Dictionary<string, ulong>> igToIgsToTickers = new Dictionary<string, Dictionary<string, ulong>>();
+
+        private void SendCachedVolInfo()
+        {
+            foreach (var perspective in igToIgsToDirtyVols)
+            {
+                var data = igToIgsToDirtyVols[perspective.Key].Where(x => x.Value != null);
+                if (data.Any())
+                {
+                    Dictionary<string, (float? vol, ulong ticker)> vols = new Dictionary<string, (float?, ulong)>();
+                    foreach (var elem in data)
+                    {
+                        if (igToDiscord.ContainsKey(elem.Key))
+                        {
+                            vols.Add(igToDiscord[elem.Key], (elem.Value, igToIgsToTickers[perspective.Key][elem.Key]));
+                        }
+                    }
+                    var packet = new PVCMultiDataPacket() 
+                    {
+                        Volumes = vols
+                    };
+                    SendPacket(packet, perspective.Key);
+                    igToIgsToDirtyVols[perspective.Key].Clear();
+                }
+            }
+        }
+
+        public void OnPlayerUpdate(string igPlayer, Vector3 pos, string? stage)
+        {
+            AddMessage(() =>
+            {
+                const float beginHearingThreshold = 3500f;
+                const float fullHearingThreshold = 750f;
+                const float soundEpsilon = 0.01f; //what percent volume change results in an update in the client's volumes.
+                float ClampedInvLerp(float a, float b, float v)
+                {
+                    return v < a ? 0 : (v > b ? 1 : (v - a) / (b - a)); //see "linear interpolation"
+                }
+
+                igToStage[igPlayer] = stage;
+                igToPos[igPlayer] = pos;
+                if (!igToIgsToDirtyVols.ContainsKey(igPlayer))
+                {
+                    igToIgsToDirtyVols[igPlayer] = new Dictionary<string, float?>();
+                }
+                if (!igToIgsToLastSetVols.ContainsKey(igPlayer))
+                {
+                    igToIgsToLastSetVols[igPlayer] = new Dictionary<string, float?>();
+                }
+                if (!igToIgsToTickers.ContainsKey(igPlayer))
+                {
+                    igToIgsToTickers[igPlayer] = new Dictionary<string, ulong>();
+                }
+                foreach (var kvp in igToPos)
+                {
+                    float dist = Vector3.Distance(kvp.Value, igToPos[igPlayer]);
+                    float setVol;
+                    if ((igToStage[igPlayer] ?? "dontmake") != (igToStage[kvp.Key] ?? "theseequal"))
+                    {
+                        //if both were null then != would fail, but the ??'s with the nonequal strings makes sure that they don't
+                        //stages aren't the same *or* both stages are null
+                        setVol = 0f;
+                    }
+                    else if (dist > beginHearingThreshold)
+                    {
+                        //too quiet (0%)
+                        setVol = 0f;
+                    }
+                    else if (dist < fullHearingThreshold)
+                    {
+                        //full vol (100%)
+                        setVol = 1f;
+                    }
+                    else
+                    {
+                        setVol = 1f - ClampedInvLerp(fullHearingThreshold, beginHearingThreshold, dist);
+                        //semi-linearize from 1/((dist^2)*log(dist))
+                        setVol *= setVol; //may sound better without this.
+                    }
+                    //within epsilon instead exact ==
+                    //if epsilon, don't set setVol or else it can slowly drift away from real vol by being within delta within +/- direction long enough
+                    float oldVol = igToIgsToLastSetVols[kvp.Key][igPlayer] ?? -100000f; //if was never set, must set
+                    if (Math.Abs(oldVol - setVol) > soundEpsilon)
+                    {
+                        //must change
+                        igToIgsToTickers[kvp.Key][igPlayer]++;
+                        igToIgsToTickers[igPlayer][kvp.Key]++;
+                        igToIgsToDirtyVols[kvp.Key][igPlayer] = setVol;
+                        igToIgsToDirtyVols[igPlayer][kvp.Key] = setVol;
+                        igToIgsToLastSetVols[kvp.Key][igPlayer] = setVol;
+                        igToIgsToLastSetVols[igPlayer][kvp.Key] = setVol;
+                    }
+                    //else //no need to change
+                }
+            });
+        }
 
         private VoiceProxServer()
         {
@@ -69,6 +172,30 @@ namespace Server
                 pvcLogger.Error("DNS could not resolve this programs IP.");
             }
             server.Create(adr, 16); //discord voice cannot support more than 16 people per lobby.
+            OnClientConnect += (string discord, string ingame) =>
+            {
+                int before = igToDiscord.Count;
+                igToDiscord[discord] = ingame;
+                if (igToDiscord.Count == 1 && before == 0)
+                {
+                    igToPos.Clear();
+                    igToStage.Clear();
+                    igToIgsToDirtyVols.Clear();
+                    igToIgsToLastSetVols.Clear();
+                    igToIgsToTickers.Clear();
+                    DiscordBot.Instance.CloseThenOpenPVCLobby().ContinueWith((task) =>
+                    {
+                        AddMessage(() =>
+                        {
+                            SendLobbyPacketsToPending();
+                        });
+                    });
+                }
+            };
+            OnClientDisconnect += (string discord) =>
+            {
+                igToDiscord.Remove(discord);
+            };
             Task.Run(Loop);
         }
 
@@ -141,6 +268,7 @@ namespace Server
                     {
                         Console.WriteLine($"Issue in message loop: {ex.ToString()}");
                     }
+                    SendCachedVolInfo();
                 }
                 sw.Stop();
                 waitTime = frameTime - (int)sw.ElapsedMilliseconds;
@@ -159,7 +287,8 @@ namespace Server
             pvcLogger.Info("A client disconnected");
             Peer p = netEvent.Peer;
             //FIX ME
-            //p.ID was 0 in this expression, couldn't remove out of discordToPeer because (client timed out and p.ID was 0 which didn't match any of the peers ids?)
+            //p.ID was 0 in this expression, couldn't remove out of discordToPeer because (client timed
+            //out and p.ID was 0 which didn't match any of the peers ids?)
             //Consider FirstOrDefault
             string discord = discordToPeer.First(x => x.Value.ID == p.ID).Key;
             discordToPeer.Remove(discord);
@@ -182,12 +311,14 @@ namespace Server
                             }
                             break;
                         case PVCMultiDataPacket multiPacket:
-                            //the server should never recieve a multi data packet
-                            SendPacket(new PVCErrorPacket() { ErrorMessage = "Why are you sending the server a PVCMultiDataPacket?" }, netEvent.Peer);
-                            break;
-                        case PVCSingleDataPacket singlePacket:
-                            //the server should never recieve a single data packet
-                            SendPacket(new PVCErrorPacket() { ErrorMessage = "Why are you sending the server a PVCSingleDataPacket?" }, netEvent.Peer);
+                            {
+                                //the server should never recieve a multi data packet
+                                Peer p = netEvent.Peer;
+                                AddMessage(() =>
+                                {
+                                    SendPacket(new PVCErrorPacket() { ErrorMessage = "Why are you sending the server a PVCMultiDataPacket?" }, p);
+                                });
+                            }
                             break;
                         case PVCClientHandshakePacket handshakePacket:
                             {
@@ -205,11 +336,15 @@ namespace Server
                                 var lobbyInfo = DiscordBot.Instance.GetLobbyInfo();
                                 if (lobbyInfo != null)
                                 {
-                                    SendPacket(new PVCLobbyPacket() 
+                                    Peer p = netEvent.Peer;
+                                    AddMessage(() =>
                                     {
-                                        LobbyId = lobbyInfo.Value.id, 
-                                        Secret = Settings.Instance.Discord.AutoSendPVCPassword ? lobbyInfo.Value.secret : null
-                                    }, netEvent.Peer);
+                                        SendPacket(new PVCLobbyPacket()
+                                        {
+                                            LobbyId = lobbyInfo.Value.id,
+                                            Secret = Settings.Instance.Discord.AutoSendPVCPassword ? lobbyInfo.Value.secret : null
+                                        }, p);
+                                    });
                                 }
                                 else
                                 {
@@ -221,7 +356,11 @@ namespace Server
                         case PVCLobbyPacket lobbyPacket:
                             {
                                 //the server should never recieve a lobby packet
-                                SendPacket(new PVCErrorPacket() { ErrorMessage = "Why are you sending the server a PVCLobbyPacket?" }, netEvent.Peer);
+                                Peer p = netEvent.Peer;
+                                AddMessage(() =>
+                                {
+                                    SendPacket(new PVCErrorPacket() { ErrorMessage = "Why are you sending the server a PVCLobbyPacket?" }, p);
+                                });
                             }
                             break;
                         case PVCErrorPacket errorPacket:
@@ -261,17 +400,14 @@ namespace Server
 
         private void SendPacket<T>(T packet, Peer recipient) where T : PVCPacket
         {
-            AddMessageToQueue(() => 
-            { 
-                byte[] data = Protocol.Serialize(packet);
-                Packet pack = default(Packet); //ENet will dispose automatically when sending.
-                pack.Create(data, PacketFlags.Reliable);
-                bool result = recipient.Send(0, ref pack);
-                if (!result)
-                {
-                    pvcLogger.Error("Sendpacket failed.");
-                }
-            });
+            byte[] data = Protocol.Serialize(packet);
+            Packet pack = default(Packet); //ENet will dispose automatically when sending.
+            pack.Create(data, PacketFlags.Reliable);
+            bool result = recipient.Send(0, ref pack);
+            if (!result)
+            {
+                pvcLogger.Error("Sendpacket failed.");
+            }
         }
 
         public string? GetServerIP()
@@ -279,7 +415,7 @@ namespace Server
             return ip;
         }
 
-        public void AddMessageToQueue(Action message)
+        public void AddMessage(Action message)
         {
             lock (messageKey)
             {
@@ -295,14 +431,18 @@ namespace Server
             else
             {
                 pvcLogger.Info("Sent lobby join info packet to pending clients.");
-                foreach (Peer pending in pendingClients)
+                AddMessage(() =>
                 {
-                    try
+                    foreach (Peer pending in pendingClients)
                     {
-                        SendPacket<PVCLobbyPacket>(new PVCLobbyPacket() { LobbyId = lobbyInfo.Value.id, Secret = lobbyInfo.Value.secret }, pending);
-                    } catch { } //they might not still be trying to connect/might have dcd
-                }
-                pendingClients.Clear();
+                        try
+                        {
+                            SendPacket(new PVCLobbyPacket() { LobbyId = lobbyInfo.Value.id, Secret = lobbyInfo.Value.secret }, pending);
+                        }
+                        catch { } //they might not still be trying to connect/might have dcd
+                    }
+                    pendingClients.Clear();
+                });
             }
         }
 
