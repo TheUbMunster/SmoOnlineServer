@@ -138,7 +138,7 @@
             this.volumeSlider.Size = new System.Drawing.Size(238, 25);
             this.volumeSlider.TabIndex = 5;
             this.volumeSlider.TickStyle = System.Windows.Forms.TickStyle.None;
-            this.volumeSlider.ValueChanged += new System.EventHandler(this.volumeSlider_Scroll);
+            this.volumeSlider.MouseUp += new System.Windows.Forms.MouseEventHandler(this.volumeSlider_MouseUp);
             // 
             // usernameLabel
             // 

@@ -427,7 +427,7 @@ namespace ProxChatClientGUI
                 if (clientIdToDisplayIndex.ContainsKey(userId))
                 {
                     int row = clientIdToDisplayIndex[userId];
-                    var lm = userTablePanel.Controls.OfType<LobbyMember>().First(x => userTablePanel.GetRow(x) == row);
+                    var lm = GetLobbyMemberUI(userId);
                     if (lm != null)
                     {
                         userTablePanel.Controls.Remove(lm);
@@ -467,8 +467,7 @@ namespace ProxChatClientGUI
                     IntPtr ptr = bData.Scan0;
                     Marshal.Copy(imageData, 0, ptr, imageData.Length);
                     output.UnlockBits(bData);
-                    int row = clientIdToDisplayIndex[userId];
-                    var lm = userTablePanel.Controls.OfType<LobbyMember>().First(x => userTablePanel.GetRow(x) == row);
+                    var lm = GetLobbyMemberUI(userId);
                     lm.SetUserImage(output);
                 }
                 catch (Exception e)
@@ -480,6 +479,12 @@ namespace ProxChatClientGUI
             {
                 viewLogger.Warn("Tried to set an image for a user that wasn't present in the UI, maybe they disconnected really fast?");
             }
+        }
+
+        public LobbyMember GetLobbyMemberUI(long userId)
+        {
+            int row = clientIdToDisplayIndex[userId];
+            return userTablePanel.Controls.OfType<LobbyMember>().First(x => userTablePanel.GetRow(x) == row);
         }
 
         public void SetCDCButton(bool connect = true)

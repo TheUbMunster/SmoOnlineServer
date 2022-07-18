@@ -12,6 +12,8 @@ namespace ProxChatClientGUI
 {
     public partial class LobbyMember : UserControl
     {
+        private static Shared.Logger lobbyMemberLogger = new Shared.Logger("LobbyMemberUI");
+
         private static Image crossedHeadphones = Image.FromFile("Images\\headphones-crossed.png");
         private static Image headphones = Image.FromFile("Images\\headphones.png");
         private static Image crossedMicrophone = Image.FromFile("Images\\mic-crossed.png");
@@ -82,6 +84,7 @@ namespace ProxChatClientGUI
         public LobbyMember()
         {
             InitializeComponent();
+            Capture = true;
             var font = new System.Drawing.Text.PrivateFontCollection();
             font.AddFontFile("Fonts\\Teko-Bold.ttf");
             usernameLabel.Font = new Font(Font.FontFamily, 16f, FontStyle.Bold, GraphicsUnit.Pixel);
@@ -193,8 +196,9 @@ namespace ProxChatClientGUI
         #endregion
 
         #region Callbacks
-        private void volumeSlider_Scroll(object sender, EventArgs e)
+        private void volumeSlider_MouseUp(object sender, MouseEventArgs e)
         {
+            lobbyMemberLogger.Info("OnMouseUp");
             volumeCallback?.Invoke((byte)volumeSlider.Value);
         }
 
@@ -207,7 +211,6 @@ namespace ProxChatClientGUI
         {
             directCallback?.Invoke(false);
         }
-        #endregion
 
         private void muteButton_Click(object sender, EventArgs e)
         {
@@ -218,5 +221,6 @@ namespace ProxChatClientGUI
         {
             Deaf = !Deaf;
         }
+        #endregion
     }
 }

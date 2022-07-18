@@ -189,6 +189,7 @@ namespace ProxChatClientGUI
                         idToUser[userId] = user;
                         string userName = user.Username + "#" + user.Discriminator;
                         nameToId[userName] = user.Id;
+                        voiceManager.SetLocalMute(userId, false);
                         onUserConnect?.Invoke(userId);
                         ProxChat.Instance.AddMessage(() =>
                         {
@@ -647,6 +648,12 @@ namespace ProxChatClientGUI
                         IEnumerable<User> users = lobbyManager.GetMemberUsers(lobby.Id);
                         modelLogger.Info("All users in the lobby:\n" +
                             $"{string.Join(",\n", users.Select(x => $"{x.Id}: {x.Username}#{x.Discriminator}"))}");
+                        ProxChat.Instance.AddMessage(() =>
+                        {
+                            var lm = ProxChat.Instance.GetLobbyMemberUI(currentUser!.Value.Id);
+                            lm.Muted = lm.Muted;
+                            lm.Deaf = lm.Deaf;
+                        });
                         foreach (User u in users)
                         {
                             if (u.Id != currentUser!.Value.Id)
@@ -654,6 +661,7 @@ namespace ProxChatClientGUI
                                 idToUser[u.Id] = u;
                                 string username = u.Username + "#" + u.Discriminator;
                                 nameToId[username] = u.Id;
+                                voiceManager.SetLocalMute(u.Id, false);
                                 onUserConnect?.Invoke(u.Id);
                                 ProxChat.Instance.AddMessage(() =>
                                 {
