@@ -20,6 +20,10 @@ CancellationTokenSource cts = new CancellationTokenSource();
 Task listenTask = server.Listen(cts.Token);
 Logger consoleLogger = new Logger("Console");
 await DiscordBot.Instance.Run();
+{
+    var e = VoiceProxServer.Instance; //access
+    consoleLogger.Info("VPS instance loaded " + e.ToString()); //and unstrippable usage force static ctor.
+}
 
 server.ClientJoined += (c, _) =>
 {
