@@ -121,8 +121,7 @@ namespace Server
         {
             AddMessage(() =>
             {
-                const float beginHearingThreshold = 3500f;
-                const float fullHearingThreshold = 750f;
+                
                 const float soundEpsilon = 0.01f; //what percent volume change results in an update in the client's volumes.
                 float ClampedInvLerp(float a, float b, float v)
                 {
@@ -149,25 +148,25 @@ namespace Server
                         continue;
                     float dist = Vector3.Distance(kvp.Value, igToPos[igPlayer]);
                     float setVol;
-                    if ((igToStage[igPlayer] ?? "dontmake") != (igToStage[kvp.Key] ?? "theseequal"))
+                    if ((igToStage[igPlayer] ?? "dont make") != (igToStage[kvp.Key] ?? "these equal"))
                     {
                         //if both were null then != would fail, but the ??'s with the nonequal strings makes sure that they don't
                         //stages aren't the same *or* both stages are null
                         setVol = 0f;
                     }
-                    else if (dist > beginHearingThreshold)
+                    else if (dist > Settings.Instance.Discord.BeginHearingThreshold)
                     {
                         //too quiet (0%)
                         setVol = 0f;
                     }
-                    else if (dist < fullHearingThreshold)
+                    else if (dist < Settings.Instance.Discord.FullHearingThreshold)
                     {
                         //full vol (100%)
                         setVol = 1f;
                     }
                     else
                     {
-                        setVol = 1f - ClampedInvLerp(fullHearingThreshold, beginHearingThreshold, dist);
+                        setVol = 1f - ClampedInvLerp(Settings.Instance.Discord.FullHearingThreshold, Settings.Instance.Discord.BeginHearingThreshold, dist);
                         //semi-linearize from 1/((dist^2)*log(dist))
                         setVol *= setVol; //may sound better without this.
                     }

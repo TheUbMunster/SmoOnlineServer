@@ -76,5 +76,7 @@ public class Settings {
         public string? LogChannel { get; set; }
         public ushort PVCPort { get; set; } = 12000;
         public bool AutoSendPVCPassword { get; set; } = true;
+        public float BeginHearingThreshold { get; set; } = 3500f;
+        public float FullHearingThreshold { get; set; } = 750f;
     }
 }
