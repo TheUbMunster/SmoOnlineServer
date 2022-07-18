@@ -693,6 +693,11 @@ namespace ProxChatClientGUI
             }
         }
 
+        public bool IsConnectedToServer()
+        {
+            return client != null;
+        }
+
         public void RecalculateRealVolume(string username, byte newVolume)
         {
             try

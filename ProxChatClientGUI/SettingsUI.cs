@@ -48,6 +48,7 @@ namespace ProxChatClientGUI
 
         private RecordingMode recordingMode = RecordingMode.None;
         private Action<Keys> OnKeyPressedAction;
+        public bool serverWasRunningUponOpening = true;
         public SettingsUI()
         {
             InitializeComponent();
@@ -138,6 +139,10 @@ namespace ProxChatClientGUI
                 });
             };
             ProxChat.KeyService.OnKeyPressed += OnKeyPressedAction;
+            FormClosing += (s, e) =>
+            {
+                ProxChat.Instance.SetCDCButtonEnabled(true);
+            };
         }
 
         private void SetActionLabel()
@@ -231,8 +236,14 @@ namespace ProxChatClientGUI
             Settings.Instance.PushToGlobal = globalKey;
             Settings.Instance.PushToTeam = teamKey;
             Settings.Instance.SpeakAction = speakActionKey;
+            bool before = Settings.Instance.PercievedVolumeSliderEnabled!.Value;
+            Settings.Instance.PercievedVolumeSliderEnabled = percievedVolumeCheckBox.Checked;
+            if (before != Settings.Instance.PercievedVolumeSliderEnabled)
+            {
+                ProxChat.Instance.SetPercievedVolumeVisible(Settings.Instance.PercievedVolumeSliderEnabled!.Value);
+            }
             Settings.SaveSettings();
-            if (needToCloseIfRunning/* && ProxChat.Instance.*/)
+            if (needToCloseIfRunning && serverWasRunningUponOpening)
             {
                 Application.Restart();
                 Environment.Exit(0); //there isn't a better way to do this other than to: start up another app

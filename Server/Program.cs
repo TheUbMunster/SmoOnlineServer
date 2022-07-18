@@ -861,6 +861,12 @@ Console.CancelKeyPress += (_, e) =>
     cts.Cancel();
 };
 
+AppDomain.CurrentDomain.ProcessExit += (_, e) =>
+{
+    DiscordBot.Instance.ClosePVCLobbyForQuit();
+    cts.Cancel();
+};
+
 //VoiceProxServer.Instance.onMessageRecieved += data =>
 //{
 //    PVCClientHandshakePacket? handshake = System.Text.Json.JsonSerializer.Deserialize<PVCClientHandshakePacket>(new ReadOnlySpan<byte>(data));

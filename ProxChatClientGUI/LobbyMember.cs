@@ -165,6 +165,12 @@ namespace ProxChatClientGUI
             }
         }
 
+        public void SetPercievedVolumeVisible(bool visible)
+        {
+            if (volumePercieved != null && !volumePercieved.IsDisposed && !volumePercieved.Disposing)
+                volumePercieved.Visible = visible;
+        }
+
         public void SetVolumeSlider(byte level)
         {
             volumeSlider.Value = level;

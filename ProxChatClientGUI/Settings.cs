@@ -80,7 +80,8 @@ public class Settings
     /// <summary>
     /// for "Always On", is toggle mute, for "PTT" and "PTM" it's the action key for that action
     /// </summary>
-    public Keys? SpeakAction { get; set; } 
+    public Keys? SpeakAction { get; set; }
+    public bool? PercievedVolumeSliderEnabled { get; set; } = false;
 
 
     public static void SaveSettings()

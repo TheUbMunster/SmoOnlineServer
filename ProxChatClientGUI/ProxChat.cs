@@ -607,6 +607,14 @@ namespace ProxChatClientGUI
             }
         }
 
+        public void SetPercievedVolumeVisible(bool visible)
+        {
+            foreach (var lm in userTablePanel.Controls.OfType<LobbyMember>())
+            {
+                lm.SetPercievedVolumeVisible(visible);
+            }
+        }
+
         private void OnPressGlobalButton(bool wasPressed)
         {
             if (wasPressed)
@@ -666,7 +674,10 @@ namespace ProxChatClientGUI
 
         private void settingsButton_Click(object sender, EventArgs e)
         {
-            new SettingsUI().Show(this);
+            SetCDCButtonEnabled(false);
+            SettingsUI sett = new SettingsUI();
+            sett.serverWasRunningUponOpening = model.IsConnectedToServer();
+            sett.Show(this);
         }
 
         private void connectDisconnectButton_Click(object sender, EventArgs e)
