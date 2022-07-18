@@ -515,9 +515,17 @@ namespace Server
                     {
                         try
                         {
-                            SendPacket(new PVCLobbyPacket() { LobbyId = lobbyInfo.Value.id, Secret = lobbyInfo.Value.secret }, pending);
+                            SendPacket(new PVCLobbyPacket()
+                            {
+                                LobbyId = lobbyInfo.Value.id,
+                                Secret = Settings.Instance.Discord.AutoSendPVCPassword ? lobbyInfo.Value.secret : null
+                            }, pending);
                         }
-                        catch { } //they might not still be trying to connect/might have dcd
+                        catch (Exception ex)
+                        {
+                            //they might not still be trying to connect/might have dcd
+                            pvcLogger.Error("Tried to send packet to a pending client, but something went wrong.");
+                        }
                     }
                     pendingClients.Clear();
                 });
