@@ -61,13 +61,14 @@ namespace Shared
         }
 
         public bool TeamOnly { get; set; }
-        public int KeepAliveMS { get; set; } //add a setting to adjust this
+        public long KeepAliveMS { get; set; } = 750; //add a setting to adjust this
         public ulong WalkieTick { get; init; } = WalkieTicker++;
-        public string? SpecificRecipient { get; set; } //if this isn't null, then teamonly is ignored.
+        public string? SpecificDiscordRecipient { get; set; } //if this isn't null, then teamonly is ignored.
+        public string DiscordSource { get; set; } = null!;
 
         public WalkieMode GetWalkieMode()
         {
-            if (SpecificRecipient != null)
+            if (SpecificDiscordRecipient != null)
                 return WalkieMode.Individual;
             else if (TeamOnly)
                 return WalkieMode.Team;

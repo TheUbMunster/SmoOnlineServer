@@ -41,19 +41,27 @@ namespace Server
 
         private bool sendVolData = false;
         private Dictionary<string, string> igToDiscord = new Dictionary<string, string>(); //dont clear this ever
+        private Dictionary<string, string> discordToIg = new Dictionary<string, string>(); //dont clear this ever
         private Dictionary<string, Vector3> igToPos = new Dictionary<string, Vector3>();
         private Dictionary<string, string?> igToStage = new Dictionary<string, string?>();
         private Dictionary<string, Dictionary<string, float?>> igToIgsToDirtyVols = new Dictionary<string, Dictionary<string, float?>>(); //null = dont change
         private Dictionary<string, Dictionary<string, float?>> igToIgsToLastSetVols = new Dictionary<string, Dictionary<string, float?>>();
         private Dictionary<string, Dictionary<string, ulong>> igToIgsToTickers = new Dictionary<string, Dictionary<string, ulong>>();
+        private Dictionary<string, PVCWalkieTalkiePacket> discordToWalkieOverrides = new Dictionary<string, PVCWalkieTalkiePacket>();
+        private Dictionary<string, long> discordToSysTickCountOnRecieveWalkie = new Dictionary<string, long>();
 
         public void SetProxChatEnabled(bool enabled)
         {
             sendVolData = enabled;
             if (!sendVolData)
             {
-                //send nulls
+                //enable pvc, slience everyone
                 SendSetVolInfo(0);
+            }
+            else
+            {
+                //disable pvc, put everyone back to default
+                SendSetVolInfo(null);
             }
         }
 
@@ -80,6 +88,36 @@ namespace Server
                 {
                     SendPacket(packet, igToDiscord[recip]);
                 });
+            }
+        }
+
+        private void WalkieTalkieCalculate()
+        {
+            foreach (var kvp in discordToWalkieOverrides)
+            {
+                kvp.Value.KeepAliveMS -= (Environment.TickCount64 - discordToSysTickCountOnRecieveWalkie[kvp.Key]);
+                if (kvp.Value.KeepAliveMS > 0)
+                {
+                    //override the vol to null (client sets to default)
+                    switch (kvp.Value.GetWalkieMode())
+                    {
+                        case PVCWalkieTalkiePacket.WalkieMode.Individual:
+                            igToIgsToDirtyVols[discordToIg[kvp.Value.SpecificDiscordRecipient!]][discordToIg[kvp.Key]] = null;
+                            break;
+                        case PVCWalkieTalkiePacket.WalkieMode.Team:
+                            //TODO TODO TODO TODO TODO TODO TODO
+                            break;
+                        case PVCWalkieTalkiePacket.WalkieMode.Global:
+                            foreach (var kvp2 in igToDiscord)
+                            {
+                                if (kvp2.Key != discordToIg[kvp.Value.DiscordSource])
+                                    igToIgsToDirtyVols[kvp2.Key][discordToIg[kvp.Key]] = null;
+                            }
+                            break;
+                        default:
+                            break;
+                    }
+                }
             }
         }
 
@@ -270,6 +308,7 @@ namespace Server
             {
                 int before = igToDiscord.Count;
                 igToDiscord[ingame] = discord;
+                discordToIg[discord] = ingame;
                 if (igToDiscord.Count == 1 && before == 0)
                 {
                     igToPos.Clear();
@@ -288,7 +327,8 @@ namespace Server
             };
             OnClientDisconnect += (string discord) =>
             {
-                igToDiscord.Remove(discord);
+                igToDiscord.Remove(discordToIg[discord]);
+                discordToIg.Remove(discord);
             };
             Task.Run(Loop);
         }
@@ -362,6 +402,7 @@ namespace Server
                     {
                         Console.WriteLine($"Issue in message loop: {ex.ToString()}");
                     }
+                    WalkieTalkieCalculate();
                     if (sendVolData)
                     {
                         SendCachedVolInfo();
@@ -394,7 +435,7 @@ namespace Server
 
         private void HandleRecieveEvent(ref Event netEvent)
         {
-            if (!discordToPeer.Values.Contains(netEvent.Peer))
+            //if (!discordToPeer.Values.Contains(netEvent.Peer))
             {
                 PVCPacket? packet = Protocol.Deserialize<PVCPacket>(netEvent.Packet.Data, netEvent.Packet.Length);
                 if (packet != null)
@@ -404,7 +445,21 @@ namespace Server
                         case PVCWalkieTalkiePacket walkiePacket:
                             {
                                 //the user is enabling team *or* global vc *or* individual vc
-                                pvcLogger.Info($"Got walkie packet: recip: {walkiePacket.SpecificRecipient ?? "null"}, teamonly: {walkiePacket.TeamOnly}");
+                                //pvcLogger.Info($"Got walkie packet: recip: {walkiePacket.SpecificRecipient ?? "null"}, teamonly: {walkiePacket.TeamOnly}");
+                                if (discordToWalkieOverrides.ContainsKey(walkiePacket.DiscordSource))
+                                {
+                                    if (discordToWalkieOverrides[walkiePacket.DiscordSource].WalkieTick < walkiePacket.WalkieTick)
+                                    {
+                                        //this packet is newer
+                                        discordToWalkieOverrides[walkiePacket.DiscordSource] = walkiePacket;
+                                        discordToSysTickCountOnRecieveWalkie[walkiePacket.DiscordSource] = Environment.TickCount64;
+                                    }
+                                }
+                                else
+                                {
+                                    discordToWalkieOverrides[walkiePacket.DiscordSource] = walkiePacket;
+                                    discordToSysTickCountOnRecieveWalkie[walkiePacket.DiscordSource] = Environment.TickCount64;
+                                }
                             }
                             break;
                         case PVCMultiDataPacket multiPacket:

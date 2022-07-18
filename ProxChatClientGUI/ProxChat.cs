@@ -283,6 +283,8 @@ namespace ProxChatClientGUI
             };
             #endregion
 
+            ActiveControl = null;
+            this.Focus();
             //start the model
             model = new Model(Settings.Instance.IngameName!);
             Task.Run(() =>
@@ -290,6 +292,7 @@ namespace ProxChatClientGUI
                 try
                 {
                     System.Timers.Timer walkieTimer = new System.Timers.Timer(200) { AutoReset = true }; //5 per second (seems resonable)
+                    walkieTimer.Start();
                     walkieTimer.Elapsed += (_, _) =>
                     {
                         lock (uiLock)
@@ -608,14 +611,6 @@ namespace ProxChatClientGUI
             }
         }
 
-        public void SetPercievedVolumeVisible(bool visible)
-        {
-            foreach (var lm in userTablePanel.Controls.OfType<LobbyMember>())
-            {
-                lm.SetPercievedVolumeVisible(visible);
-            }
-        }
-
         private void OnPressGlobalButton(bool wasPressed)
         {
             if (wasPressed)
@@ -628,6 +623,14 @@ namespace ProxChatClientGUI
             else
             {
                 isGlobalHeldDown = false;
+            }
+        }
+
+        public void SetPercievedVolumeVisible(bool visible)
+        {
+            foreach (var lm in userTablePanel.Controls.OfType<LobbyMember>())
+            {
+                lm.SetPercievedVolumeVisible(visible);
             }
         }
 

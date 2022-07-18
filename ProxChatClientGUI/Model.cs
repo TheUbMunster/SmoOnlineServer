@@ -351,11 +351,15 @@ namespace ProxChatClientGUI
         void HandleConnectEvent(ref Event netEvent)
         {
             modelLogger.Info("Client successfully connected to server.");
-            SendPacket(new PVCClientHandshakePacket()
+            Peer p = netEvent.Peer;
+            AddMessage(() =>
             {
-                DiscordUsername = currentUser!.Value.Username + "#" + currentUser!.Value.Discriminator,
-                IngameUsername = ingameUsername
-            }, netEvent.Peer);
+                SendPacket(new PVCClientHandshakePacket()
+                {
+                    DiscordUsername = currentUser!.Value.Username + "#" + currentUser!.Value.Discriminator,
+                    IngameUsername = ingameUsername
+                }, p);
+            });
         }
 
         void HandleRecieveEvent(ref Event netEvent)
@@ -543,12 +547,16 @@ namespace ProxChatClientGUI
             {
                 string? username = directRecipientUserId.HasValue ? 
                     idToUser[directRecipientUserId.Value].Username + "#" + idToUser[directRecipientUserId.Value].Discriminator : null;
-                SendPacket(new PVCWalkieTalkiePacket()
+                AddMessage(() =>
                 {
-                    SpecificRecipient = username,
-                    TeamOnly = teamOnly,
-                },
-                remotePeer.Value);
+                    SendPacket(new PVCWalkieTalkiePacket()
+                    {
+                        SpecificDiscordRecipient = username,
+                        TeamOnly = teamOnly,
+                        DiscordSource = currentUser!.Value.Username + "#" + currentUser!.Value.Discriminator
+                    },
+                    remotePeer.Value);
+                });
             }
             else
             {
