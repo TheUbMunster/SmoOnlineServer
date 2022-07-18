@@ -136,6 +136,8 @@ namespace Server
                 }
                 foreach (var kvp in igToPos)
                 {
+                    if (kvp.Key == igPlayer)
+                        continue;
                     float dist = Vector3.Distance(kvp.Value, igToPos[igPlayer]);
                     float setVol;
                     if ((igToStage[igPlayer] ?? "dontmake") != (igToStage[kvp.Key] ?? "theseequal"))
@@ -162,7 +164,7 @@ namespace Server
                     }
                     //within epsilon instead exact ==
                     //if epsilon, don't set setVol or else it can slowly drift away from real vol by being within delta within +/- direction long enough
-                    float oldVol = igToIgsToLastSetVols[kvp.Key][igPlayer] ?? -100000f; //if was never set, must set
+                    float oldVol = igToIgsToLastSetVols.ContainsKey(kvp.Key) ? igToIgsToLastSetVols[kvp.Key][igPlayer] ?? -100000f : -100000f; //if was never set, must set
                     if (Math.Abs(oldVol - setVol) > soundEpsilon)
                     {
                         //must change
