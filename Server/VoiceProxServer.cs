@@ -186,7 +186,7 @@ namespace Server
                         igToIgsToTickers[kvp.Key] = new Dictionary<string, ulong>();
                     }
                     float oldVol = (igToIgsToLastSetVols[kvp.Key].ContainsKey(igPlayer) ? igToIgsToLastSetVols[kvp.Key][igPlayer] ?? -100000f : -100000f); //if was never set, must set
-                    if (Math.Abs(oldVol - setVol) > soundEpsilon)
+                    if (Math.Abs(oldVol - setVol) > soundEpsilon || (setVol == 0 && oldVol != 0) || (setVol == 1 && oldVol != 1))
                     {
                         //must change
                         if (!igToIgsToTickers[kvp.Key].ContainsKey(igPlayer))
