@@ -77,8 +77,7 @@ namespace ProxChatClientGUI
                 {
                     ProxChat.Instance.AddMessage(() =>
                     {
-                        //unbind buttons
-                        //remove that users UI element.
+                        //unbind buttons & remove that users UI element.
                         ProxChat.Instance.RemoveMemberFromList(id);
                     });
                 };
@@ -131,13 +130,15 @@ namespace ProxChatClientGUI
                                 ProxChat.Instance.RemoveMemberFromList(userId);
                             }
                         }
+                        AddMessage(() =>
+                        {
+                            idToUser.Clear();
+                            nameToId.Clear();
+                        });
                         ProxChat.Instance.SetCDCButton(true);
                         ProxChat.Instance.SetCDCButtonEnabled(true);
                         ProxChat.Instance.SetConnectionStatus(false);
                     });
-                    //idToPic.Clear();
-                    idToUser.Clear();
-                    nameToId.Clear();
                     client = null;
                     remotePeer = null;
                     AddMessage(() =>
@@ -208,6 +209,7 @@ namespace ProxChatClientGUI
 
                 lobbyManager.OnMemberDisconnect += (long lobbyId, long userId) =>
                 {
+                    //idToUser keynotfoundexception
                     string userName = idToUser[userId].Username + "#" + idToUser[userId].Discriminator;
                     nameToId.Remove(userName);
                     idToUser.Remove(userId);

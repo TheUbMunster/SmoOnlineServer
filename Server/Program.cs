@@ -306,6 +306,18 @@ CommandHandler.RegisterCommandAliases(args =>
     }
 }, "pvcip");
 
+CommandHandler.RegisterCommandAliases(args =>
+{
+    if (args.Length != 0)
+    {
+        return "Usage: getlobbysecret (no arguments.)";
+    }
+    else
+    {
+        return DiscordBot.Instance.GetLobbyInfo()?.secret ?? "(The lobby does not appear to be open.)";
+    }
+}, "getlobbysecret", "gls");
+
 CommandHandler.RegisterCommandAliases(args => 
 {
     if (args.Length == 0)

@@ -41,6 +41,11 @@ namespace ProxChatClientGUI
          * toggle mute (only if "always on")  /
          */
 
+        private Keys? teamKey = null;
+        private Keys? globalKey = null;
+        private Keys? toggleDeafenKey = null;
+        private Keys? speakActionKey = null;
+
         private RecordingMode recordingMode = RecordingMode.None;
         private Action<Keys> OnKeyPressedAction;
         public SettingsUI()
@@ -103,25 +108,25 @@ namespace ProxChatClientGUI
                         case RecordingMode.Deafen:
                             {
                                 toggleDeafenTextBox.Text = key.ToString();
-                                Settings.Instance.ToggleDeafen = key;
+                                toggleDeafenKey = key;
                             }
                             break;
                         case RecordingMode.PushGlobal:
                             {
                                 pushToGlobalTextBox.Text = key.ToString();
-                                Settings.Instance.PushToGlobal = key;
+                                globalKey = key;
                             }
                             break;
                         case RecordingMode.PushTeam:
                             {
                                 pushToTeamTextBox.Text = key.ToString();
-                                Settings.Instance.PushToTeam = key;
+                                teamKey = key;
                             }
                             break;
                         case RecordingMode.Action:
                             {
                                 pushToActionTextBox.Text = key.ToString();
-                                Settings.Instance.SpeakAction = key;
+                                speakActionKey = key;
                             }
                             break;
                         case RecordingMode.None:
@@ -218,6 +223,10 @@ namespace ProxChatClientGUI
                 MessageBox.Show("The Default Volume is invalid, make sure it's a number between 0 and 200.");
             }
             Settings.Instance.SpeakMode = speakModeComboBox.SelectedItem.ToString();
+            Settings.Instance.ToggleDeafen = toggleDeafenKey;
+            Settings.Instance.PushToGlobal = globalKey;
+            Settings.Instance.PushToTeam = teamKey;
+            Settings.Instance.SpeakAction = speakActionKey;
             Settings.SaveSettings();
             if (needToCloseIfRunning/* && ProxChat.Instance.*/)
             {

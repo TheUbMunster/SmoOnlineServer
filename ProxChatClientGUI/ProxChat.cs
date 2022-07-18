@@ -431,6 +431,10 @@ namespace ProxChatClientGUI
                     if (lm != null)
                     {
                         userTablePanel.Controls.Remove(lm);
+                        lm.SetDeafButtonCallback(null);
+                        lm.SetMuteButtonCallback(null);
+                        lm.SetDirectButtonCallback(null);
+                        lm.SetVolumeSliderCallback(null);
                         lm.DisposeUserImage();
                         lm.Dispose();
                         isDirectHeldDown.Remove(userId);

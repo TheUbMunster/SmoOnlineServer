@@ -92,6 +92,9 @@ public class DiscordBot {
         }
     }
 
+    /// <summary>
+    /// Note: *Only* call this when quitting the program
+    /// </summary>
     public void ClosePVCLobby()
     {
         lock (lobbyLock)
@@ -100,7 +103,7 @@ public class DiscordBot {
             {
                 try
                 {
-                    webClient.DeleteAsync($"https://discord.com/api/v10/lobbies/{pvcLobby.Value.Id}");
+                    webClient.DeleteAsync($"https://discord.com/api/v10/lobbies/{pvcLobby.Value.Id}").Wait();
                 }
                 catch (Exception e)
                 {
