@@ -103,8 +103,6 @@ namespace ProxChatClientGUI
             {
                 directSpeakButton.Text = "direct";
             }
-            Muted = false;
-            Deaf = false;
         }
 
         #region Sets
@@ -181,11 +179,15 @@ namespace ProxChatClientGUI
         public void SetMuteButtonCallback(Action<bool>? callback)
         {
             muteCallback = callback;
+            muted = !muted;
+            Muted = !muted;
         }
 
         public void SetDeafButtonCallback(Action<bool>? callback)
         {
             deafCallback = callback;
+            deaf = !deaf;
+            Deaf = !deaf;
         }
 
         /// <param name="callback">true if pressed, false if released</param>

@@ -97,6 +97,7 @@ server.PacketHandler = (c, p) =>
                 c.Metadata["scenario"] = gamePacket.ScenarioNum;
                 c.Metadata["2d"] = gamePacket.Is2d;
                 c.Metadata["lastGamePacket"] = gamePacket;
+                VoiceProxServer.Instance.OnPlayerUpdate(c.Name, Vector3.Zero, gamePacket.Stage, true);
                 switch (gamePacket.Stage)
                 {
                     case "CapWorldHomeStage" when gamePacket.ScenarioNum == 0:

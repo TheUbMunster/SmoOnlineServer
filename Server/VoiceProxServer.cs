@@ -53,11 +53,11 @@ namespace Server
             if (!sendVolData)
             {
                 //send nulls
-                SendNullVolInfo();
+                SendSetVolInfo(0);
             }
         }
 
-        private void SendNullVolInfo()
+        private void SendSetVolInfo(float? vol = null)
         {
             foreach (var perspective in igToIgsToDirtyVols)
             {
@@ -67,7 +67,7 @@ namespace Server
                     if (kvp.Value != perspective.Key)
                         dict.Add(kvp.Value, new PVCMultiDataPacket.VolTick()
                         {
-                            Volume = null,
+                            Volume = vol,
                             Ticker = ++igToIgsToTickers[perspective.Key][kvp.Key]
                         });
                 }
@@ -99,7 +99,7 @@ namespace Server
                             vols.Add(igToDiscord[elem.Key], new PVCMultiDataPacket.VolTick()
                             {
                                 Volume = elem.Value,
-                                Ticker = igToIgsToTickers[perspective.Key][elem.Key]
+                                Ticker = igToIgsToTickers[perspective.Key][elem.Key] //NO ++ here
                             });
                         }
                     }
@@ -117,7 +117,7 @@ namespace Server
             }
         }
 
-        public void OnPlayerUpdate(string igPlayer, Vector3 pos, string? stage)
+        public void OnPlayerUpdate(string igPlayer, Vector3 pos, string? stage, bool disableForMismatchingScenesOnly = false)
         {
             AddMessage(() =>
             {
@@ -146,6 +146,39 @@ namespace Server
                 {
                     if (kvp.Key == igPlayer)
                         continue;
+                    if (!igToIgsToDirtyVols.ContainsKey(kvp.Key))
+                    {
+                        igToIgsToDirtyVols[kvp.Key] = new Dictionary<string, float?>();
+                    }
+                    if (!igToIgsToLastSetVols.ContainsKey(kvp.Key))
+                    {
+                        igToIgsToLastSetVols[kvp.Key] = new Dictionary<string, float?>();
+                    }
+                    if (!igToIgsToTickers.ContainsKey(kvp.Key))
+                    {
+                        igToIgsToTickers[kvp.Key] = new Dictionary<string, ulong>();
+                    }
+                    if (disableForMismatchingScenesOnly)
+                    {
+                        if ((igToStage[igPlayer] ?? "dont make") != (igToStage[kvp.Key] ?? "these equal"))
+                        {
+                            if (!igToIgsToTickers[kvp.Key].ContainsKey(igPlayer))
+                                igToIgsToTickers[kvp.Key][igPlayer] = 0;
+                            else
+                                igToIgsToTickers[kvp.Key][igPlayer]++;
+
+                            if (!igToIgsToTickers[igPlayer].ContainsKey(kvp.Key))
+                                igToIgsToTickers[igPlayer][kvp.Key] = 0;
+                            else
+                                igToIgsToTickers[igPlayer][kvp.Key]++;
+
+                            igToIgsToTickers[igPlayer][kvp.Key]++;
+                            igToIgsToDirtyVols[kvp.Key][igPlayer] = 0;
+                            igToIgsToDirtyVols[igPlayer][kvp.Key] = 0;
+                            igToIgsToLastSetVols[kvp.Key][igPlayer] = 0;
+                            igToIgsToLastSetVols[igPlayer][kvp.Key] = 0;
+                        }
+                    }
                     float dist = Vector3.Distance(kvp.Value, igToPos[igPlayer]);
                     float setVol;
                     if ((igToStage[igPlayer] ?? "dont make") != (igToStage[kvp.Key] ?? "these equal"))
@@ -169,20 +202,6 @@ namespace Server
                         setVol = 1f - ClampedInvLerp(Settings.Instance.Discord.FullHearingThreshold, Settings.Instance.Discord.BeginHearingThreshold, dist);
                         //semi-linearize from 1/((dist^2)*log(dist))
                         setVol *= setVol; //may sound better without this.
-                    }
-                    //within epsilon instead exact ==
-                    //if epsilon, don't set setVol or else it can slowly drift away from real vol by being within delta within +/- direction long enough
-                    if (!igToIgsToDirtyVols.ContainsKey(kvp.Key))
-                    {
-                        igToIgsToDirtyVols[kvp.Key] = new Dictionary<string, float?>();
-                    }
-                    if (!igToIgsToLastSetVols.ContainsKey(kvp.Key))
-                    {
-                        igToIgsToLastSetVols[kvp.Key] = new Dictionary<string, float?>();
-                    }
-                    if (!igToIgsToTickers.ContainsKey(kvp.Key))
-                    {
-                        igToIgsToTickers[kvp.Key] = new Dictionary<string, ulong>();
                     }
                     float oldVol = (igToIgsToLastSetVols[kvp.Key].ContainsKey(igPlayer) ? igToIgsToLastSetVols[kvp.Key][igPlayer] ?? -100000f : -100000f); //if was never set, must set
                     if (Math.Abs(oldVol - setVol) > soundEpsilon || (setVol == 0 && oldVol != 0) || (setVol == 1 && oldVol != 1))
