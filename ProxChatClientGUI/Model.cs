@@ -216,6 +216,12 @@ namespace ProxChatClientGUI
                     modelLogger.Info(userName + " left the lobby.");
                     onUserDisconnect?.Invoke(userId);
                 };
+
+                lobbyManager.OnLobbyDelete += (long lobbyId, uint reason) =>
+                {
+                    modelLogger.Info("Discord VC lobby closed because: " + reason);
+                    onServerDisconnect?.Invoke();
+                };
                 #endregion
 
                 #region Loop

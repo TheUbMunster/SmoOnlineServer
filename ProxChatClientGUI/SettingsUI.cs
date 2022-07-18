@@ -171,21 +171,25 @@ namespace ProxChatClientGUI
         private void toggleDeafen_click(object sender, EventArgs e)
         {
             recordingMode = RecordingMode.Deafen;
+            toggleDeafenTextBox.Text = "Recording...";
         }
 
         private void actionKey_click(object sender, EventArgs e)
         {
             recordingMode = RecordingMode.Action;
+            pushToActionTextBox.Text = "Recording...";
         }
 
         private void pushToGlobal_click(object sender, EventArgs e)
         {
             recordingMode = RecordingMode.PushGlobal;
+            pushToGlobalTextBox.Text = "Recording...";
         }
 
         private void pushToTeam_click(object sender, EventArgs e)
         {
             recordingMode = RecordingMode.PushTeam;
+            pushToTeamTextBox.Text = "Recording...";
         }
 
         private void confirmButton_Click(object sender, EventArgs e)
