@@ -23,10 +23,15 @@ namespace Shared
 
     public class PVCMultiDataPacket : PVCPacket
     {
+        public class VolTick
+        {
+            public float? Volume { get; set; }
+            public ulong Ticker { get; set; }
+        }
         //because udp doesn't guarantee order, ticker is a value indicating when the value was generated.
         //this is used by the client to make sure that if it tries to set the volume of a user, it isn't
         //outdated.
-        public Dictionary<string, (float? volume, ulong ticker)> Volumes { get; set; } = null!;
+        public Dictionary<string, VolTick> Volumes { get; set; } = null!;
 
         public PVCMultiDataPacket()
         {

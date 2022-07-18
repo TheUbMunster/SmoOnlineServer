@@ -390,9 +390,9 @@ namespace ProxChatClientGUI
                                     {
                                         if (!idToTicker.ContainsKey(nameToId[kvp.Key]))
                                             idToTicker[nameToId[kvp.Key]] = 0;
-                                        if (kvp.Value.ticker > idToTicker[nameToId[kvp.Key]])
+                                        if (kvp.Value.Ticker > idToTicker[nameToId[kvp.Key]])
                                         {
-                                            float percentVol = kvp.Value.volume ?? 1f;
+                                            float percentVol = kvp.Value.Volume ?? 1f;
                                             string username = kvp.Key;
                                             long userId = nameToId[username];
                                             ProxChat.Instance.AddMessage(() =>

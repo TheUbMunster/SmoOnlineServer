@@ -426,6 +426,7 @@ CommandHandler.RegisterCommand("voiceprox", args =>
     {
         return "Too many arguments. (Usage: voiceprox <optional: on|off>)";
     }
+    bool before = proxChat;
     switch (args[0])
     {
         case "on":
@@ -439,11 +440,12 @@ CommandHandler.RegisterCommand("voiceprox", args =>
         default:
             return "Usage: voiceprox <optional: on|off>";
     }
-    VoiceProxServer.Instance.AddMessage(() =>
-    {
-        VoiceProxServer.Instance.SetProxChatEnabled(proxChat);
-    });
-    return "Turned voice proximity " + (proxChat ? "on." : "off.");
+    if (before != proxChat)
+        VoiceProxServer.Instance.AddMessage(() =>
+        {
+            VoiceProxServer.Instance.SetProxChatEnabled(proxChat);
+        });
+    return "Turned voice proximity " + (proxChat ? "on." : "off.") + (proxChat == before ? " (it was already in that state.)" : "");
 });
 
 CommandHandler.RegisterCommand("rejoin", args =>

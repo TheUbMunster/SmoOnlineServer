@@ -61,11 +61,15 @@ namespace Server
         {
             foreach (var perspective in igToIgsToDirtyVols)
             {
-                Dictionary<string, (float? volume, ulong ticker)> dict = new Dictionary<string, (float? volume, ulong ticker)>();
+                Dictionary<string, PVCMultiDataPacket.VolTick> dict = new Dictionary<string, PVCMultiDataPacket.VolTick>();
                 foreach (var kvp in igToDiscord)
                 {
                     if (kvp.Value != perspective.Key)
-                        dict.Add(kvp.Value, (null, ++igToIgsToTickers[perspective.Key][kvp.Key]));
+                        dict.Add(kvp.Value, new PVCMultiDataPacket.VolTick()
+                        {
+                            Volume = null,
+                            Ticker = ++igToIgsToTickers[perspective.Key][kvp.Key]
+                        });
                 }
                 var packet = new PVCMultiDataPacket()
                 {
@@ -74,7 +78,7 @@ namespace Server
                 string recip = perspective.Key;
                 AddMessage(() =>
                 {
-                    SendPacket(packet, recip);
+                    SendPacket(packet, igToDiscord[recip]);
                 });
             }
         }
@@ -86,12 +90,17 @@ namespace Server
                 var data = igToIgsToDirtyVols[perspective.Key].Where(x => x.Value != null);
                 if (data.Any())
                 {
-                    Dictionary<string, (float? vol, ulong ticker)> vols = new Dictionary<string, (float?, ulong)>();
+                    Dictionary<string, PVCMultiDataPacket.VolTick> vols = new Dictionary<string, PVCMultiDataPacket.VolTick>();
                     foreach (var elem in data)
                     {
                         if (igToDiscord.ContainsKey(elem.Key))
                         {
-                            vols.Add(igToDiscord[elem.Key], (elem.Value, igToIgsToTickers[perspective.Key][elem.Key]));
+                            pvcLogger.Info($"Making {igToDiscord[perspective.Key]}'s volume for {igToDiscord[elem.Key]} = {elem.Value}.");
+                            vols.Add(igToDiscord[elem.Key], new PVCMultiDataPacket.VolTick()
+                            {
+                                Volume = elem.Value,
+                                Ticker = igToIgsToTickers[perspective.Key][elem.Key]
+                            });
                         }
                     }
                     var packet = new PVCMultiDataPacket() 
@@ -101,7 +110,7 @@ namespace Server
                     string recip = perspective.Key;
                     AddMessage(() =>
                     {
-                        SendPacket(packet, recip);
+                        SendPacket(packet, igToDiscord[recip]);
                     });
                     igToIgsToDirtyVols[perspective.Key].Clear();
                 }
@@ -164,11 +173,32 @@ namespace Server
                     }
                     //within epsilon instead exact ==
                     //if epsilon, don't set setVol or else it can slowly drift away from real vol by being within delta within +/- direction long enough
-                    float oldVol = igToIgsToLastSetVols.ContainsKey(kvp.Key) ? igToIgsToLastSetVols[kvp.Key][igPlayer] ?? -100000f : -100000f; //if was never set, must set
+                    if (!igToIgsToDirtyVols.ContainsKey(kvp.Key))
+                    {
+                        igToIgsToDirtyVols[kvp.Key] = new Dictionary<string, float?>();
+                    }
+                    if (!igToIgsToLastSetVols.ContainsKey(kvp.Key))
+                    {
+                        igToIgsToLastSetVols[kvp.Key] = new Dictionary<string, float?>();
+                    }
+                    if (!igToIgsToTickers.ContainsKey(kvp.Key))
+                    {
+                        igToIgsToTickers[kvp.Key] = new Dictionary<string, ulong>();
+                    }
+                    float oldVol = (igToIgsToLastSetVols[kvp.Key].ContainsKey(igPlayer) ? igToIgsToLastSetVols[kvp.Key][igPlayer] ?? -100000f : -100000f); //if was never set, must set
                     if (Math.Abs(oldVol - setVol) > soundEpsilon)
                     {
                         //must change
-                        igToIgsToTickers[kvp.Key][igPlayer]++;
+                        if (!igToIgsToTickers[kvp.Key].ContainsKey(igPlayer))
+                            igToIgsToTickers[kvp.Key][igPlayer] = 0;
+                        else
+                            igToIgsToTickers[kvp.Key][igPlayer]++;
+
+                        if (!igToIgsToTickers[igPlayer].ContainsKey(kvp.Key))
+                            igToIgsToTickers[igPlayer][kvp.Key] = 0;
+                        else
+                            igToIgsToTickers[igPlayer][kvp.Key]++;
+
                         igToIgsToTickers[igPlayer][kvp.Key]++;
                         igToIgsToDirtyVols[kvp.Key][igPlayer] = setVol;
                         igToIgsToDirtyVols[igPlayer][kvp.Key] = setVol;
@@ -221,7 +251,7 @@ namespace Server
             OnClientConnect += (string discord, string ingame) =>
             {
                 int before = igToDiscord.Count;
-                igToDiscord[discord] = ingame;
+                igToDiscord[ingame] = discord;
                 if (igToDiscord.Count == 1 && before == 0)
                 {
                     igToPos.Clear();
