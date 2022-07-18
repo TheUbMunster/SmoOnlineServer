@@ -95,7 +95,7 @@ namespace Server
                     {
                         if (igToDiscord.ContainsKey(elem.Key))
                         {
-                            pvcLogger.Info($"Making {igToDiscord[perspective.Key]}'s volume for {igToDiscord[elem.Key]} = {elem.Value}.");
+                            //pvcLogger.Info($"Making {igToDiscord[perspective.Key]}'s volume for {igToDiscord[elem.Key]} = {elem.Value}.");
                             vols.Add(igToDiscord[elem.Key], new PVCMultiDataPacket.VolTick()
                             {
                                 Volume = elem.Value,

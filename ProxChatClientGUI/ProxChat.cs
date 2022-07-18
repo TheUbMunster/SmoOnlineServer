@@ -2,6 +2,7 @@ using System;
 using System.Drawing.Imaging;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Collections.Concurrent;
 using Shared;
 
 namespace ProxChatClientGUI
@@ -88,7 +89,7 @@ namespace ProxChatClientGUI
 
         public static ProxChat Instance = null!;
         private object uiLock = new object();
-        private Queue<Action> messageQueue = new Queue<Action>();
+        private ConcurrentQueue<Action> messageQueue = new ConcurrentQueue<Action>();
 
         private Logger viewLogger = new Logger("UI");
 
@@ -331,7 +332,10 @@ namespace ProxChatClientGUI
                         {
                             while (messageQueue.Count > 0)
                             {
-                                Invoke(messageQueue.Dequeue());
+                                if (messageQueue.TryDequeue(out Action? action))
+                                {
+                                    Invoke(() => action?.Invoke());
+                                }
                             }
                             KeyService.TickKeys();
                         }
@@ -649,10 +653,7 @@ namespace ProxChatClientGUI
 
         public void AddMessage(Action action)
         {
-            lock (uiLock)
-            {
-                messageQueue.Enqueue(action);
-            }
+            messageQueue.Enqueue(action);
         }
 
         //~ProxChat()

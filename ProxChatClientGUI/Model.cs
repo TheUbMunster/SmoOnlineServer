@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -14,7 +15,7 @@ namespace ProxChatClientGUI
     internal class Model
     {
         private object modelLock = new object();
-        private Queue<Action> messageQueue = new Queue<Action>();
+        private ConcurrentQueue<Action> messageQueue = new ConcurrentQueue<Action>();
 
         private Logger modelLogger = new Logger("VoiceProxService");
 
@@ -154,7 +155,7 @@ namespace ProxChatClientGUI
                 };
 #endregion
 
-#region Setup
+                #region Setup
                 Library.Initialize();
                 discord = new Discord.Discord(Constants.clientId, (UInt64)Discord.CreateFlags.Default);
                 lobbyManager = discord.GetLobbyManager();
@@ -181,7 +182,7 @@ namespace ProxChatClientGUI
                 userManager.OnCurrentUserUpdate -= upd; //if the user changes nick in the middle of a game it will mess things up.
 #endregion
 
-#region Self Event Subscription
+                #region Self Event Subscription
                 lobbyManager.OnMemberConnect += (long lobbyId, long userId) =>
                 {
                     idToVolPercent[userId] = 0f;
@@ -230,7 +231,7 @@ namespace ProxChatClientGUI
                 };
 #endregion
 
-#region Loop
+                #region Loop
                 try
                 {
                     //System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
@@ -315,13 +316,11 @@ namespace ProxChatClientGUI
                         {
                             while (messageQueue.Count > 0)
                             {
-                                var action = messageQueue.Dequeue();
-                                modelLogger.Info(action.Method.Name);
-                                if (action.Method.Name.Contains("<.ctor>b__20") || action.Method.Name.Contains("<.ctor>b__19"))
+                                if(messageQueue.TryDequeue(out Action? action))
                                 {
-                                    modelLogger.Info($"This might be the ExecutionEngineException cause: " + action.Method.GetMethodBody()!.ToString() ?? "");
+                                    //modelLogger.Info(action.Method.Name);
+                                    action?.Invoke();
                                 }
-                                action();
                             }
                         }
                         sw.Stop();
@@ -345,10 +344,7 @@ namespace ProxChatClientGUI
 
         public void AddMessage(Action action)
         {
-            lock (modelLock)
-            {
-                messageQueue.Enqueue(action);
-            }
+            messageQueue.Enqueue(action);
         }
 
 #region NetEvent Handlers
