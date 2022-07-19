@@ -107,9 +107,7 @@ namespace Server
                     if (igToDiscord.ContainsKey(recip))
                         SendPacket(packet, igToDiscord[recip]);
                     else
-                    {
                         igToPendingPackets[recip] = packet;
-                    }
                 });
             }
         }
@@ -130,6 +128,11 @@ namespace Server
                             {
                                 EnsureEntryExists(igToIgsToDirtyVols, discordToIg[kvp.Value.SpecificDiscordRecipient!]);
                                 igToIgsToDirtyVols[discordToIg[kvp.Value.SpecificDiscordRecipient!]][discordToIg[kvp.Key]] = null;
+                                EnsureEntryExists(igToIgsToTickers, discordToIg[kvp.Value.SpecificDiscordRecipient!]);
+                                if (!igToIgsToTickers[discordToIg[kvp.Value.SpecificDiscordRecipient!]].ContainsKey(discordToIg[kvp.Key]))
+                                    igToIgsToTickers[discordToIg[kvp.Value.SpecificDiscordRecipient!]][discordToIg[kvp.Key]] = 0;
+                                else
+                                    igToIgsToTickers[discordToIg[kvp.Value.SpecificDiscordRecipient!]][discordToIg[kvp.Key]]++;
                             }
                             break;
                         case PVCWalkieTalkiePacket.WalkieMode.Team:
@@ -139,7 +142,17 @@ namespace Server
                             foreach (var kvp2 in igToDiscord)
                             {
                                 if (kvp2.Key != discordToIg[kvp.Value.DiscordSource])
+                                {
+                                    //igToIgsToDirtyVols[kvp2.Key][discordToIg[kvp.Key]] = null;
+
+                                    EnsureEntryExists(igToIgsToDirtyVols, kvp2.Key);
                                     igToIgsToDirtyVols[kvp2.Key][discordToIg[kvp.Key]] = null;
+                                    EnsureEntryExists(igToIgsToTickers, kvp2.Key);
+                                    if (!igToIgsToTickers[kvp2.Key].ContainsKey(discordToIg[kvp.Key]))
+                                        igToIgsToTickers[kvp2.Key][discordToIg[kvp.Key]] = 0;
+                                    else
+                                        igToIgsToTickers[kvp2.Key][discordToIg[kvp.Key]]++;
+                                }
                             }
                             break;
                         default:
@@ -148,6 +161,7 @@ namespace Server
                 }
                 else
                 {
+                    //TODO send last set vols instead?
                     toRemove.Add(kvp.Key);
                 }
             }
@@ -185,9 +199,7 @@ namespace Server
                         if (igToDiscord.ContainsKey(recip))
                             SendPacket(packet, igToDiscord[recip]);
                         else
-                        {
                             igToPendingPackets[recip] = packet;
-                        }
                     });
                     igToIgsToDirtyVols[perspective.Key].Clear();
                 }
@@ -205,7 +217,8 @@ namespace Server
                 }
 
                 igToStage[igPlayer] = stage;
-                igToPos[igPlayer] = pos;
+                if (!disableForMismatchingScenesOnly)
+                    igToPos[igPlayer] = pos;
                 EnsureEntryExists(igToIgsToDirtyVols, igPlayer);
                 EnsureEntryExists(igToIgsToLastSetVols, igPlayer);
                 EnsureEntryExists(igToIgsToTickers, igPlayer);
@@ -235,6 +248,7 @@ namespace Server
                             igToIgsToLastSetVols[kvp.Key][igPlayer] = 0;
                             igToIgsToLastSetVols[igPlayer][kvp.Key] = 0;
                         }
+                        continue;
                     }
                     float dist = Vector3.Distance(kvp.Value, igToPos[igPlayer]);
                     float setVol;

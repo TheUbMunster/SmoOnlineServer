@@ -212,7 +212,7 @@ namespace ProxChatClientGUI
                                 ProxChat.Instance.SetPercievedVolume(userId, percentVol);
                             });
                         }
-                        //voiceManager.SetLocalMute(userId, false);
+                        voiceManager.SetLocalMute(userId, false);
                         onUserConnect?.Invoke(userId);
                         ProxChat.Instance.AddMessage(() =>
                         {
