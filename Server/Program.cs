@@ -538,6 +538,10 @@ CommandHandler.RegisterCommand("ban", args =>
             });
             IPEndPoint? endpoint = (IPEndPoint?)user.Socket?.RemoteEndPoint;
             Settings.Instance.BanList.Players.Add(user.Id);
+            VoiceProxServer.Instance.AddMessage(() =>
+            {
+                VoiceProxServer.Instance.KickUserIfConnected(endpoint.Address);
+            });
             if (endpoint != null) Settings.Instance.BanList.IpAddresses.Add(endpoint.ToString());
             user.Dispose();
         });

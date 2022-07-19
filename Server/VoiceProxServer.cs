@@ -591,6 +591,43 @@ namespace Server
             HandleDisconnectEvent(ref netEvent);
         }
 
+        public void KickUserIfConnected(IPAddress addr)
+        {
+            Peer? p = null;
+            foreach (var peer in discordToPeer.Select(x => x.Value).Union(pendingClients))
+            {
+                if (peer.IsSet)
+                {
+                    try
+                    {
+                        IPAddress ipad = IPAddress.Parse(peer.IP);
+                        if (addr.Equals(ipad))
+                        {
+                            peer.DisconnectNow(69420);//69420 is banned code
+                            p = peer;
+                            break;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        pvcLogger.Warn("Tried to parse ips to kick the recently banned user and something went wrong: " + ex.ToString());
+                    }
+                }
+            }
+            if (p != null)
+            {
+                var e = discordToPeer.FirstOrDefault(x => x.Value.ID == p.Value.ID);
+                if (e.Value.ID == p.Value.ID)
+                {
+                    discordToPeer.Remove(e.Key);
+                }
+                else
+                {
+                    pendingClients.Remove(e.Value);
+                }
+            }
+        }
+
         public void SendPacket<T>(T packet, string discordUsername) where T : PVCPacket
         {
             if (discordToPeer.ContainsKey(discordUsername))
