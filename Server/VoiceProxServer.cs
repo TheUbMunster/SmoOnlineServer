@@ -355,10 +355,17 @@ namespace Server
                     igToIgsToTickers.Clear();
                     DiscordBot.Instance.CloseThenOpenPVCLobby().ContinueWith((task) =>
                     {
-                        AddMessage(() =>
+                        if (!task.Result)
                         {
-                            SendLobbyPacketsToPending();
-                        });
+
+                        }
+                        else
+                        {
+                            AddMessage(() =>
+                            {
+                                SendLobbyPacketsToPending();
+                            });
+                        }
                     });
                 }
             };

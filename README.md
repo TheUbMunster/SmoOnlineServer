@@ -78,7 +78,8 @@ have this program running on your computer. Instead of using discord itself, use
 the first time you connect to a server. First, it asks for the host (this is the IP address of the server, to find this, run `pvcip` on the server), Second, it requires
 your in-game username (This is the name of the profile you select when starting the game and the name that shows up on your nametag in-game).
 
-That's all you need to interact with the client. You can change your settings (set keybinds for mute/undeafen, change to PTT or PTM, edit your port and ip/host etc.)
+That's all you need to interact with the client. You can change your settings (set keybinds for mute/undeafen, change to PTT or PTM, edit your port and ip/host etc.) To connect
+to the server, click the "green phone" button in the top right to "join the call". Click the "red phone" while you're connected to disconnect.
 
 For troubleshooting, see the [release](https://github.com/TheUbMunster/SmoOnlineServer/releases) notes.
 

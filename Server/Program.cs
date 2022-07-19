@@ -300,21 +300,59 @@ server.PacketHandler = (c, p) =>
 
 
 #region Command registry
-CommandHandler.RegisterCommand("help", _ => $"Valid commands: {string.Join(", ", CommandHandler.Handlers.Keys)}");
+//CommandHandler.RegisterCommand("help", _ => $"Valid commands: {string.Join(", ", CommandHandler.Handlers.Keys)}");
 
-//CommandHandler.RegisterCommandAliases(args =>
-//{
-//    if (args.Length != 0)
-//    {
-//        return "Usage: help (no arguments)";
-//    }
-//    else
-//    {   //dont linewrap this string to keep horizontal length from exceeding 120 (newlines are literal)
-//        string helpInfo = @"
-//";
-//        return helpInfo;
-//    }
-//}, "help", "h");
+CommandHandler.RegisterCommandAliases(args =>
+{
+    if (args.Length != 0)
+    {
+        return "Usage: help (no arguments)";
+    }
+    else
+    {   //dont linewrap this string to keep horizontal length from exceeding 120 (newlines are literal)
+        string helpInfo = @"
+dscrestart - restarts the discord bot (this has nothing to do with voice proximity, but a bot token does have to be in the server settings to use voice proximity)
+
+pvcip - prints the IP address that voice proximity clients should use to connect to the server
+
+getlobbysecret, gls - prints the lobby secret (If clients are prompted to enter this in their clients, that's because setautosendsecret is off)
+
+setautosendsecret, sass <on|off> - enables/disables the automatic sending of the discord lobby secret to clients when attempting to connect
+
+voiceproxdistances, vpxd <optional (both or neither): beginheardist, fullheardist> - prints or sets the hearing distances for voice proximity
+
+voiceprox <optional: on|off> - prints the current state or enables/disables voice proximity
+
+rejoin <usernames...> - forces listed connected (game) clients to leave and rejoin
+
+crash <usernames...> - forces listed connected (game) clients to crash
+
+ban <usernames...> - bans the users with the given usernames (this bans the IP, so this will only ban voiceprox clients if they were on the same network)
+
+send <stage> <id> <scenario[-1..127]> <player/*> - sends the user to the specified stage
+
+sendall <stage> - sends all users to the specified stage
+
+scenario merge <optional: true/false> - prints the current status of or sets the scenario merge setting
+
+tag - run command to see options
+
+maxplayers <newplayercount> - sets the maximum number of players that can be in the game server *and* voiceprox lobby
+
+list - lists all connected clients (for the game server) and their guid's
+
+flip - run command to see options
+
+shine - run command to see options
+
+loadsettings - immediately reloads the settings
+
+exit, quit, q - closes the server safely
+
+help, h - prints this helpful help message!";
+        return helpInfo;
+    }
+}, "help", "h");
 
 CommandHandler.RegisterCommandAliases(args => 
 {
@@ -366,70 +404,6 @@ CommandHandler.RegisterCommandAliases(args =>
             return "Usage: setautosendsecret <on|off>";
     }
 }, "setautosendsecret", "sass");
-
-#region Obsolete via GUI PVC client
-//CommandHandler.RegisterCommand("vcpcorrlist", args =>
-//{
-//    if (args.Length != 0)
-//    {
-//        return "Usage: vcpcorrlist (no arguments)";
-//    }
-//    else
-//    {
-//        lock (igToDiscord)
-//        {
-//            return string.Join("\n", igToDiscord.Select(x => $"ingame: \"{x.Key}\" discord: \"{x.Value}\""));
-//        }
-//    }
-//});
-
-//CommandHandler.RegisterCommand("vcpcorrdel", args =>
-//{
-//    if (args.Length != 1)
-//    {
-//        return "Usage: vcpcorrdel <ingameusername>";
-//    }
-//    else
-//    {
-//        lock (igToDiscord)
-//        {
-//            if (igToDiscord.ContainsKey(args[0]))
-//            {
-//                igToDiscord.Remove(args[0]);
-//                return "Successfully removed the sepcified user from the vcp correlation table.";
-//            }
-//            else
-//            {
-//                return $"No user with the in-game username \"{args[0]}\" exists in the vcp correlation table (Perhaps they weren't added with vcpcorr in the first place?).";
-//            }
-//        }
-//    }
-//});
-
-//CommandHandler.RegisterCommand("vcpcorr", args =>
-//{
-//    //2 args, correlate discord username to ingame username
-//    if (args.Length != 2 || !args[0].Contains("#")) //need the hashtag and number.
-//    {
-//        return "Usage: vcpcorr <discord#username> <ingameusername>";
-//    }
-//    else
-//    {
-//        lock (igToDiscord)
-//        {
-//            igToDiscord[args[1]] = args[0];
-//        }
-//        if (server.Clients.Any(x => x.Name == args[1]))
-//        {
-//            return $"Sucessfully correlated the discord user \"{args[0]}\" to the in-game player \"{args[1]}\".";
-//        }
-//        else
-//        {
-//            return $"Correlated the discord user \"{args[0]}\" to the in-game player \"{args[1]}\", however, the player doesn't appear to be in-game yet.";
-//        }
-//    }
-//});
-#endregion
 
 CommandHandler.RegisterCommandAliases(args =>
 {

@@ -47,7 +47,11 @@ public class DiscordBot {
             Task.Run(Reconnect);
             return "Restarting Discord bot";
         });
-        if (Config.Token == null) return;
+        if (Config.Token == null)
+        {
+            Logger.Warn("No discord bot token is set in the server settings! You cannot use voice proximity until you assign a bot token!");
+            return;
+        }
         webClient.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", "Bot " + Config.Token);
         //I don't think this is necessary because access to the static member "Settings.Instance" will
         //trigger a call to the static Settings constructor, which therefore will load the settings.
@@ -115,6 +119,11 @@ public class DiscordBot {
 
     public async Task<bool> CloseThenOpenPVCLobby()
     {
+        if (Config.Token == null)
+        {
+            Logger.Warn("An attempt was made to open the PVC lobby without the discord bot token set! You need to set the discord bot token to use voice proximity!");
+            return false;
+        }
         bool success = false;
         try
         {
