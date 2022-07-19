@@ -581,9 +581,12 @@ namespace ProxChatClientGUI
                             {
                                 requestDisconnect = true;
                             });
-                            ProxChat.Instance.SetCDCButtonEnabled(true);
-                            ProxChat.Instance.SetCDCButton(true);
-                            ProxChat.Instance.SetConnectionStatus(false);
+                            ProxChat.Instance.AddMessage(() =>
+                            {
+                                ProxChat.Instance.SetCDCButtonEnabled(true);
+                                ProxChat.Instance.SetCDCButton(true);
+                                ProxChat.Instance.SetConnectionStatus(false);
+                            });
                             return;
                         }
                         else

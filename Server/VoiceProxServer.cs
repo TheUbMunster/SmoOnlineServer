@@ -50,6 +50,20 @@ namespace Server
         private Dictionary<string, PVCWalkieTalkiePacket> discordToWalkieOverrides = new Dictionary<string, PVCWalkieTalkiePacket>();
         private Dictionary<string, long> discordToSysTickCountOnRecieveWalkie = new Dictionary<string, long>();
 
+        private void EnsureEntryExists<T>(Dictionary<string, Dictionary<string, T>> dict, string first, string second)
+        {
+            if (!dict.ContainsKey(first))
+                dict.Add(first, new Dictionary<string, T>());
+            if (!dict[first].ContainsKey(second))
+                dict[first].Add(second, default(T)!);
+        }
+
+        private void EnsureEntryExists<T>(Dictionary<string, Dictionary<string, T>> dict, string first)
+        {
+            if (!dict.ContainsKey(first))
+                dict.Add(first, new Dictionary<string, T>());
+        }
+
         public void SetProxChatEnabled(bool enabled)
         {
             sendVolData = enabled;
@@ -73,11 +87,14 @@ namespace Server
                 foreach (var kvp in igToDiscord)
                 {
                     if (kvp.Value != perspective.Key)
+                    {
+                        EnsureEntryExists(igToIgsToTickers, perspective.Key, kvp.Key);
                         dict.Add(kvp.Value, new PVCMultiDataPacket.VolTick()
                         {
                             Volume = vol,
                             Ticker = ++igToIgsToTickers[perspective.Key][kvp.Key]
                         });
+                    }
                 }
                 var packet = new PVCMultiDataPacket()
                 {
@@ -86,7 +103,8 @@ namespace Server
                 string recip = perspective.Key;
                 AddMessage(() =>
                 {
-                    SendPacket(packet, igToDiscord[recip]);
+                    if (igToDiscord.ContainsKey(recip))
+                        SendPacket(packet, igToDiscord[recip]);
                 });
             }
         }
@@ -148,7 +166,8 @@ namespace Server
                     string recip = perspective.Key;
                     AddMessage(() =>
                     {
-                        SendPacket(packet, igToDiscord[recip]);
+                        if (igToDiscord.ContainsKey(recip))
+                            SendPacket(packet, igToDiscord[recip]);
                     });
                     igToIgsToDirtyVols[perspective.Key].Clear();
                 }
@@ -159,7 +178,6 @@ namespace Server
         {
             AddMessage(() =>
             {
-                
                 const float soundEpsilon = 0.01f; //what percent volume change results in an update in the client's volumes.
                 float ClampedInvLerp(float a, float b, float v)
                 {
@@ -168,34 +186,16 @@ namespace Server
 
                 igToStage[igPlayer] = stage;
                 igToPos[igPlayer] = pos;
-                if (!igToIgsToDirtyVols.ContainsKey(igPlayer))
-                {
-                    igToIgsToDirtyVols[igPlayer] = new Dictionary<string, float?>();
-                }
-                if (!igToIgsToLastSetVols.ContainsKey(igPlayer))
-                {
-                    igToIgsToLastSetVols[igPlayer] = new Dictionary<string, float?>();
-                }
-                if (!igToIgsToTickers.ContainsKey(igPlayer))
-                {
-                    igToIgsToTickers[igPlayer] = new Dictionary<string, ulong>();
-                }
+                EnsureEntryExists(igToIgsToDirtyVols, igPlayer);
+                EnsureEntryExists(igToIgsToLastSetVols, igPlayer);
+                EnsureEntryExists(igToIgsToTickers, igPlayer);
                 foreach (var kvp in igToPos)
                 {
                     if (kvp.Key == igPlayer)
                         continue;
-                    if (!igToIgsToDirtyVols.ContainsKey(kvp.Key))
-                    {
-                        igToIgsToDirtyVols[kvp.Key] = new Dictionary<string, float?>();
-                    }
-                    if (!igToIgsToLastSetVols.ContainsKey(kvp.Key))
-                    {
-                        igToIgsToLastSetVols[kvp.Key] = new Dictionary<string, float?>();
-                    }
-                    if (!igToIgsToTickers.ContainsKey(kvp.Key))
-                    {
-                        igToIgsToTickers[kvp.Key] = new Dictionary<string, ulong>();
-                    }
+                    EnsureEntryExists(igToIgsToDirtyVols, kvp.Key);
+                    EnsureEntryExists(igToIgsToLastSetVols, kvp.Key);
+                    EnsureEntryExists(igToIgsToTickers, kvp.Key);
                     if (disableForMismatchingScenesOnly)
                     {
                         if ((igToStage[igPlayer] ?? "dont make") != (igToStage[kvp.Key] ?? "these equal"))
