@@ -16,7 +16,7 @@ This is my fork of the [official server](https://github.com/CraftyBoss/SuperMari
 Must have the [.NET 6 SDK](https://dotnet.microsoft.com/en-us/download) and Git installed.
 Run these commands in your shell:
 ```shell
-git clone https://github.com/Sanae6/SmoOnlineServer
+git clone https://github.com/TheUbMunster/SmoOnlineServer
 cd SmoOnlineServer
 # replace run with build to only build the server
 dotnet run --project Server/Server.csproj -c Release
@@ -33,38 +33,6 @@ cp smo.serivce /etc/systemd/system/smo.service
 # edit ExecStart to your path for the server executable and change WorkingDirectory to the server directory
 chmod +x filepath to the server executable
 systemctl enable --now smo.service
-```
-
-## Run docker image
-
-(untested, these are the original instructions)
-
-If you have [docker](https://docs.docker.com/) on your system, you can use the existing docker image.
-That way you don't have to build this server yourself or manually handle executables.
-
-```shell
-docker  run  --rm  -it  -p 1027:1027  -v "/$PWD/data/://data/"  ghcr.io/sanae6/smo-online-server
-# on Windows, depending on the shell you're using, $PWD might not work. Use an absolute path instead.
-```
-
-To always check for and use the latest server version you can add `--pull=always` to the options.
-
-Alternatively there's a `docker-compose.yml` for [docker-compose](https://docs.docker.com/compose/) to simplify the command line options:
-```shell
-# update server
-docker-compose pull
-
-# start server
-docker-compose up -d
-
-# open the server cli
-docker attach `docker-compose ps -q` --sig-proxy=false
-
-# watch server logs
-docker-compose logs --tail=20 --follow
-
-# stop server
-docker-compose stop
 ```
 
 ## Commands
@@ -98,14 +66,17 @@ FullHearingThreshold: the in-game distance at which someone who's close doesn't 
 
 ### Server
 Setup for this server as opposed to the official server is very similar, no action needs to be taken unless/until you want to enable the voice proximity feature,
-to do so, run `voiceprox on/off` to enable/disable voice proximity. Enter `voiceprox` to see if it's currently enabled.
+to do so, run `voiceprox on/off` to enable/disable voice proximity. Enter `voiceprox` to see if it's currently enabled. Support for linux and mac are not guaranteed
+out-of-the-box. It's possible the server can still run on these platforms, but it's untested. You might have luck compiling it yourself for these targets.
 
 ### Client
-To use the client, you need .NET 6.0 desktop runtime installed (Client is a WinForms app). If you don't have it installed, it should prompt you. If installing, make sure not to select "Console" or "Server", you need the desktop one.
+To use the client, you need .NET 6.0 desktop runtime installed (Client is a WinForms app). If you don't have it installed, it should prompt you. If installing, make sure
+not to select "Console" or "Server", you need the desktop one. This client as-is, only works on windows, if support is demanded for other platforms, I'll look into it.
 
-This client is designed to be simple and do as much of the setup as it can automatically. However, some settings do need to be setup upon the first time you connect to
-a server. First, it asks for the host (this is the IP address of the server, to find this, run `pvcip` on the server), Second, it requires your in-game username (This
-is the name of the profile you select when starting the game and the name that shows up on your nametag in-game).
+This client is designed to be simple and do as much of the setup as it can automatically. The whole idea is that you are playing the game on your switch/emulator, and you
+have this program running on your computer. Instead of using discord itself, use this application for voice chat instead. However, some settings do need to be setup upon
+the first time you connect to a server. First, it asks for the host (this is the IP address of the server, to find this, run `pvcip` on the server), Second, it requires
+your in-game username (This is the name of the profile you select when starting the game and the name that shows up on your nametag in-game).
 
 That's all you need to interact with the client. You can change your settings (set keybinds for mute/undeafen, change to PTT or PTM, edit your port and ip/host etc.)
 
@@ -120,6 +91,7 @@ VolumePrefs: A dictionary of discord usernames to volume preferences (as you mov
 SpeakMode: "Always On"/"Push-To-Talk"/"Push-To-Mute", default: "Always On"  
 PushToTeam: The keybind for the team communication button, default: null (As of release v1.0.0-alpha, this is not yet implemented)  
 PushToGlobal: The keybind for the global communication button, default: null (As of release v1.0.0-alpha, this is not yet implemented)  
-ToggleDeafen: Toggles your deafen, default: null  
+ToggleDeafen: The keybind to toggle your deafen, default: null  
 SpeakAction: The keybind for "SpeakMode" action (When set to "Always On", this functions as a toggle mute keybind), default: null  
-PercievedVolumeSliderEnabled: Whether or not to show the percieved volume of users (enabling this might make it easy to accidentally cheat, as when you move close to a user in-game, you can see this slider rise), default: false  
+PercievedVolumeSliderEnabled: Whether or not to show the percieved volume of users (enabling this might make it easy to accidentally cheat, as when you move close to a user
+in-game, you can see this slider rise), default: false  
