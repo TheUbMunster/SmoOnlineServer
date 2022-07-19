@@ -668,14 +668,6 @@ namespace ProxChatClientGUI
             messageQueue.Enqueue(action);
         }
 
-        //~ProxChat()
-        //{
-        //    foreach (var elem in toDispose)
-        //    {
-        //        elem?.Dispose();
-        //    }
-        //}
-
         private void settingsButton_Click(object sender, EventArgs e)
         {
             SetCDCButtonEnabled(false);

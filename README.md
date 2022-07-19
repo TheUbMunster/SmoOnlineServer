@@ -101,6 +101,8 @@ Setup for this server as opposed to the official server is very similar, no acti
 to do so, run `voiceprox on/off` to enable/disable voice proximity. Enter `voiceprox` to see if it's currently enabled.
 
 ### Client
+To use the client, you need .NET 6.0 desktop runtime installed (Client is a WinForms app). If you don't have it installed, it should prompt you. If installing, make sure not to select "Console" or "Server", you need the desktop one.
+
 This client is designed to be simple and do as much of the setup as it can automatically. However, some settings do need to be setup upon the first time you connect to
 a server. First, it asks for the host (this is the IP address of the server, to find this, run `pvcip` on the server), Second, it requires your in-game username (This
 is the name of the profile you select when starting the game and the name that shows up on your nametag in-game).
@@ -108,3 +110,16 @@ is the name of the profile you select when starting the game and the name that s
 That's all you need to interact with the client. You can change your settings (set keybinds for mute/undeafen, change to PTT or PTM, edit your port and ip/host etc.)
 
 For troubleshooting, see the [release](https://github.com/TheUbMunster/SmoOnlineServer/releases) notes.
+
+#### Client settings
+ServerPort: The port that proximity voice chat connects to in the server, default: 12000
+ServerHost: The IP/Hostname of the server, default: null
+IngameName: Your in-game username, default: null
+DefaultVolume: The volume at which newly connected users who do not have a volume saved in preferences will be set to, default: 50
+VolumePrefs: A dictionary of discord usernames to volume preferences (as you move people's volume sliders around, the client will remember and save them here), default: {}
+SpeakMode: "Always On"/"Push-To-Talk"/"Push-To-Mute", default: "Always On"
+PushToTeam: The keybind for the team communication button, default: null (As of release v1.0.0-alpha, this is not yet implemented)
+PushToGlobal: The keybind for the global communication button, default: null (As of release v1.0.0-alpha, this is not yet implemented)
+ToggleDeafen: Toggles your deafen, default: null
+SpeakAction: The keybind for "SpeakMode" action (When set to "Always On", this functions as a toggle mute keybind), default: null
+PercievedVolumeSliderEnabled: Whether or not to show the percieved volume of users (enabling this might make it easy to accidentally cheat, as when you move close to a user in-game, you can see this slider rise), default: false
