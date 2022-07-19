@@ -439,7 +439,7 @@ namespace Server
                     {
                         Console.WriteLine($"Issue in message loop: {ex.ToString()}");
                     }
-                    WalkieTalkieCalculate();
+                    //WalkieTalkieCalculate();
                     if (sendVolData)
                     {
                         SendCachedVolInfo();
@@ -490,20 +490,22 @@ namespace Server
                             {
                                 //the user is enabling team *or* global vc *or* individual vc
                                 //pvcLogger.Info($"Got walkie packet: recip: {walkiePacket.SpecificRecipient ?? "null"}, teamonly: {walkiePacket.TeamOnly}");
-                                if (discordToWalkieOverrides.ContainsKey(walkiePacket.DiscordSource))
-                                {
-                                    if (discordToWalkieOverrides[walkiePacket.DiscordSource].WalkieTick < walkiePacket.WalkieTick)
-                                    {
-                                        //this packet is newer
-                                        discordToWalkieOverrides[walkiePacket.DiscordSource] = walkiePacket;
-                                        discordToSysTickCountOnRecieveWalkie[walkiePacket.DiscordSource] = Environment.TickCount64;
-                                    }
-                                }
-                                else
-                                {
-                                    discordToWalkieOverrides[walkiePacket.DiscordSource] = walkiePacket;
-                                    discordToSysTickCountOnRecieveWalkie[walkiePacket.DiscordSource] = Environment.TickCount64;
-                                }
+
+
+                                //if (discordToWalkieOverrides.ContainsKey(walkiePacket.DiscordSource))
+                                //{
+                                //    if (discordToWalkieOverrides[walkiePacket.DiscordSource].WalkieTick < walkiePacket.WalkieTick)
+                                //    {
+                                //        //this packet is newer
+                                //        discordToWalkieOverrides[walkiePacket.DiscordSource] = walkiePacket;
+                                //        discordToSysTickCountOnRecieveWalkie[walkiePacket.DiscordSource] = Environment.TickCount64;
+                                //    }
+                                //}
+                                //else
+                                //{
+                                //    discordToWalkieOverrides[walkiePacket.DiscordSource] = walkiePacket;
+                                //    discordToSysTickCountOnRecieveWalkie[walkiePacket.DiscordSource] = Environment.TickCount64;
+                                //}
                             }
                             break;
                         case PVCMultiDataPacket multiPacket:
