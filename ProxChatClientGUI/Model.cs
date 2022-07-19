@@ -31,7 +31,7 @@ namespace ProxChatClientGUI
         private Dictionary<string, long> nameToId = new Dictionary<string, long>();
         private Dictionary<long, User> idToUser = new Dictionary<long, User>();
         private Dictionary<long, float> idToVolPercent = new Dictionary<long, float>(); //what % of user pref vol should users be set to with SetLocalVol
-
+        private Dictionary<string, PVCMultiDataPacket.VolTick> nameToVolCache = new Dictionary<string, PVCMultiDataPacket.VolTick>();
         //private ulong singleTicker = 0;
         //private string lastSingleUsername = null!;
         //private ulong multiTicker = 0;
@@ -197,7 +197,22 @@ namespace ProxChatClientGUI
                         idToUser[userId] = user;
                         string userName = user.Username + "#" + user.Discriminator;
                         nameToId[userName] = user.Id;
-                        voiceManager.SetLocalMute(userId, false);
+                        if (nameToVolCache.ContainsKey(userName))
+                        {
+                            float percentVol = nameToVolCache[userName].Volume ?? 1f;
+                            long userId = nameToId[userName];
+                            ProxChat.Instance.AddMessage(() =>
+                            {
+                                byte finalVol = (byte)(percentVol * Settings.Instance.VolumePrefs![userName]);
+                                AddMessage(() =>
+                                {
+                                    idToVolPercent[userId] = percentVol;
+                                    voiceManager.SetLocalVolume(userId, finalVol);
+                                });
+                                ProxChat.Instance.SetPercievedVolume(userId, percentVol);
+                            });
+                        }
+                        //voiceManager.SetLocalMute(userId, false);
                         onUserConnect?.Invoke(userId);
                         ProxChat.Instance.AddMessage(() =>
                         {
@@ -411,7 +426,16 @@ namespace ProxChatClientGUI
                                     else
                                     {
                                         //cache for later
-                                        modelLogger.Warn("Could not set volume from multipacket for user because that user isn't set yet. (Add volume caching feature)");
+                                        //modelLogger.Warn("Could not set volume from multipacket for user because that user isn't set yet. (Add volume caching feature)");
+                                        modelLogger.Info("Had to cache a volume from a multipacket because that user isn't set yet.");
+                                        if (!nameToVolCache.ContainsKey(kvp.Key))
+                                        {
+                                            nameToVolCache[kvp.Key] = kvp.Value;
+                                        }
+                                        if (nameToVolCache[kvp.Key].Ticker < kvp.Value.Ticker)
+                                        {
+                                            nameToVolCache[kvp.Key] = kvp.Value;
+                                        }
                                     }
                                 }
                             });

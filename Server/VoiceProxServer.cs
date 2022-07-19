@@ -49,6 +49,7 @@ namespace Server
         private Dictionary<string, Dictionary<string, ulong>> igToIgsToTickers = new Dictionary<string, Dictionary<string, ulong>>();
         private Dictionary<string, PVCWalkieTalkiePacket> discordToWalkieOverrides = new Dictionary<string, PVCWalkieTalkiePacket>();
         private Dictionary<string, long> discordToSysTickCountOnRecieveWalkie = new Dictionary<string, long>();
+        private Dictionary<string, PVCMultiDataPacket> igToPendingPackets = new Dictionary<string, PVCMultiDataPacket>();
 
         private void EnsureEntryExists<T>(Dictionary<string, Dictionary<string, T>> dict, string first, string second)
         {
@@ -105,14 +106,20 @@ namespace Server
                 {
                     if (igToDiscord.ContainsKey(recip))
                         SendPacket(packet, igToDiscord[recip]);
+                    else
+                    {
+                        igToPendingPackets[recip] = packet;
+                    }
                 });
             }
         }
 
         private void WalkieTalkieCalculate()
         {
+            List<string> toRemove = null!;
             foreach (var kvp in discordToWalkieOverrides)
             {
+                toRemove ??= new List<string>();
                 kvp.Value.KeepAliveMS -= (Environment.TickCount64 - discordToSysTickCountOnRecieveWalkie[kvp.Key]);
                 if (kvp.Value.KeepAliveMS > 0)
                 {
@@ -120,7 +127,10 @@ namespace Server
                     switch (kvp.Value.GetWalkieMode())
                     {
                         case PVCWalkieTalkiePacket.WalkieMode.Individual:
-                            igToIgsToDirtyVols[discordToIg[kvp.Value.SpecificDiscordRecipient!]][discordToIg[kvp.Key]] = null;
+                            {
+                                EnsureEntryExists(igToIgsToDirtyVols, discordToIg[kvp.Value.SpecificDiscordRecipient!]);
+                                igToIgsToDirtyVols[discordToIg[kvp.Value.SpecificDiscordRecipient!]][discordToIg[kvp.Key]] = null;
+                            }
                             break;
                         case PVCWalkieTalkiePacket.WalkieMode.Team:
                             //TODO TODO TODO TODO TODO TODO TODO
@@ -136,7 +146,13 @@ namespace Server
                             break;
                     }
                 }
+                else
+                {
+                    toRemove.Add(kvp.Key);
+                }
             }
+            if (toRemove != null)
+                toRemove.ForEach(x => discordToWalkieOverrides.Remove(x));
         }
 
         private void SendCachedVolInfo()
@@ -168,6 +184,10 @@ namespace Server
                     {
                         if (igToDiscord.ContainsKey(recip))
                             SendPacket(packet, igToDiscord[recip]);
+                        else
+                        {
+                            igToPendingPackets[recip] = packet;
+                        }
                     });
                     igToIgsToDirtyVols[perspective.Key].Clear();
                 }
@@ -307,6 +327,11 @@ namespace Server
                 int before = igToDiscord.Count;
                 igToDiscord[ingame] = discord;
                 discordToIg[discord] = ingame;
+                if (igToPendingPackets.ContainsKey(ingame))
+                {
+                    SendPacket(igToPendingPackets[ingame], igToDiscord[ingame]);
+                    igToPendingPackets.Remove(ingame);
+                }
                 if (igToDiscord.Count == 1 && before == 0)
                 {
                     igToPos.Clear();
@@ -426,9 +451,16 @@ namespace Server
             //p.ID was 0 in this expression, couldn't remove out of discordToPeer because (client timed
             //out and p.ID was 0 which didn't match any of the peers ids?)
             //Consider FirstOrDefault
-            string discord = discordToPeer.First(x => x.Value.ID == p.ID).Key;
-            discordToPeer.Remove(discord);
-            OnClientDisconnect?.Invoke(discord);
+            string discord = discordToPeer.FirstOrDefault(x => x.Value.ID == p.ID).Key;
+            if (discordToPeer.ContainsKey(discord))
+            {
+                discordToPeer.Remove(discord);
+                OnClientDisconnect?.Invoke(discord);
+            }
+            else
+            {
+                pvcLogger.Info("Strange client timeout with id 0.");
+            }
         }
 
         private void HandleRecieveEvent(ref Event netEvent)
