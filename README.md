@@ -30,11 +30,11 @@ Banlist: banned people are unable to join the server, default: false
 ### Discord
 Token: the token of the bot you want to load into, default: null  
 Prefix: the bot prefix to be used, default: $  
-LogChannel: logs the server console to that channel, default: null
-PVCPort: the port that proximity voice chat clients connect to, default: 12000
-AutoSendPVCPassword: whether or not to automatically send the lobby secret for people to join (this prevents unwanted people from joining the vc), default: true
-BeginHearingThreshold: the in-game distance at which you just barely begin to hear another person, default: 3500
-FullHearingThreshold: the in-game distance at which someone who's close doesn't get any louder as they get closer, default: 750
+LogChannel: logs the server console to that channel, default: null  
+PVCPort: the port that proximity voice chat clients connect to, default: 12000  
+AutoSendPVCPassword: whether or not to automatically send the lobby secret for people to join (this prevents unwanted people from joining the vc), default: true  
+BeginHearingThreshold: the in-game distance at which you just barely begin to hear another person, default: 3500  
+FullHearingThreshold: the in-game distance at which someone who's close doesn't get any louder as they get closer, default: 750  
 
 ## Setup
 
