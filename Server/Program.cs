@@ -111,7 +111,16 @@ server.PacketHandler = (c, p) =>
                         {
                             c.Metadata["speedrun"] = false;
                         }
-                        bool wasSpeedrun = (bool)c.Metadata["speedrun"]!; //this threw keynotpresent under some circumstance on a non 100% file
+                        bool wasSpeedrun;
+                        if (c.Metadata.ContainsKey("speedrun"))
+                        {
+                            wasSpeedrun = (bool)c.Metadata["speedrun"]!; //this threw keynotpresent under some circumstance on a non 100% file
+                        }
+                        else
+                        {
+                            c.Metadata["speedrun"] = wasSpeedrun = false;
+                        }
+
                         c.Metadata["speedrun"] = false;
                         if (wasSpeedrun)
                             Task.Run(async () =>
