@@ -1,6 +1,7 @@
 # Super Mario Odyssey: Online Server
 
 This is my fork of the [official server](https://github.com/CraftyBoss/SuperMarioOdysseyOnline) for the Super Mario Odyssey: Online mod.
+Big credit to the team who worked on the server and the client, as this fork relies on [Sanae's server](https://github.com/Sanae6/SmoOnlineServer)
 
 
 ## Windows Setup
