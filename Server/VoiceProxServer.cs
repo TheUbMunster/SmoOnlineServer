@@ -210,7 +210,6 @@ namespace Server
                             else
                                 igToIgsToTickers[igPlayer][kvp.Key]++;
 
-                            igToIgsToTickers[igPlayer][kvp.Key]++;
                             igToIgsToDirtyVols[kvp.Key][igPlayer] = 0;
                             igToIgsToDirtyVols[igPlayer][kvp.Key] = 0;
                             igToIgsToLastSetVols[kvp.Key][igPlayer] = 0;
@@ -255,7 +254,6 @@ namespace Server
                         else
                             igToIgsToTickers[igPlayer][kvp.Key]++;
 
-                        igToIgsToTickers[igPlayer][kvp.Key]++;
                         igToIgsToDirtyVols[kvp.Key][igPlayer] = setVol;
                         igToIgsToDirtyVols[igPlayer][kvp.Key] = setVol;
                         igToIgsToLastSetVols[kvp.Key][igPlayer] = setVol;
