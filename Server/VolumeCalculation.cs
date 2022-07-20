@@ -96,11 +96,14 @@ namespace Server
             }
         }
 
-        public void OnRecieveUserData(string igPlayer, Vector3 pos, string? stage)
+        public void OnRecieveUserData(string igPlayer, Vector3 pos)
         {
             lock (lockKey)
             {
                 igToPos[igPlayer] = pos;
+                if (!igToStage.ContainsKey(igPlayer))
+                    igToStage[igPlayer] = null;
+                string? stage = igToStage[igPlayer];
                 igs.Add(igPlayer);
                 if (!igToIgsToVols.ContainsKey(igPlayer))
                     igToIgsToVols[igPlayer] = new Dictionary<string, UserVolInfo>();
@@ -118,7 +121,11 @@ namespace Server
                     volInfo ??= igToIgsToVols[igPlayer][ig];
 
                     //actual calculation
+                    if (!igToStage.ContainsKey(ig))
+                        igToStage[ig] = null;
                     string? igStage = igToStage[ig];
+                    if (!igToPos.ContainsKey(ig) || !igToPos.ContainsKey(igPlayer))
+                        continue;
                     float dist = Vector3.Distance(igToPos[ig], igToPos[igPlayer]);
                     float setVol;
                     if (igStage == null || stage == null || igStage != stage)
@@ -279,6 +286,8 @@ namespace Server
                 {
                     foreach (string ig2 in igs)
                     {
+                        if (ig1 == ig2)
+                            continue;
                         var info = igToIgsToVols[ig1][ig2];
                         if (!enabled)
                         {
@@ -410,8 +419,11 @@ namespace Server
                 {
                     foreach (string ig2 in igs)
                     {
-                        igToIgsToVols[ig1][ig2].LastSetVolume = igToIgsToVols[ig1][ig2].ToSendVolume; //unless walkie override
-                        igToIgsToVols[ig1][ig2].ToSendVolume = null;
+                        if (ig1 != ig2)
+                        {
+                            igToIgsToVols[ig1][ig2].LastSetVolume = igToIgsToVols[ig1][ig2].ToSendVolume; //unless walkie override
+                            igToIgsToVols[ig1][ig2].ToSendVolume = null;
+                        }
                     }
                 }
                 return result;
@@ -426,15 +438,30 @@ namespace Server
                 {
                     Dictionary<string, PVCMultiDataPacket.VolTick> vols = new Dictionary<string, PVCMultiDataPacket.VolTick>();
                     PVCMultiDataPacket packet = new PVCMultiDataPacket() { Volumes = vols };
-                    foreach (var kvp in igToIgsToVols[discordToIg[discord]]) //ToDictionary doesn't work because it doesn't conditionally exclude entires
+                    //igToIgsToVols can be empty here
+                    string igPlayer = discordToIg[discord];
+                    if (!igToIgsToVols.ContainsKey(igPlayer))
+                        igToIgsToVols[igPlayer] = new Dictionary<string, UserVolInfo>();
+                    foreach (string ig in igs) //ToDictionary doesn't work because it doesn't conditionally exclude entires
                     {
-                        if (igToDiscord.ContainsKey(kvp.Key))
+                        if (ig == igPlayer)
+                            continue;
+                        //ig <-> igPlayer
+                        UserVolInfo volInfo = null!;
+                        if (!igToIgsToVols.ContainsKey(ig))
+                            igToIgsToVols[ig] = new Dictionary<string, UserVolInfo>();
+                        if (!igToIgsToVols[ig].ContainsKey(igPlayer))
+                            volInfo = igToIgsToVols[igPlayer][ig] = igToIgsToVols[ig][igPlayer] = new UserVolInfo();
+                        volInfo ??= igToIgsToVols[igPlayer][ig];
+
+                        if (igToDiscord.ContainsKey(ig))
                         {
-                            vols.Add(igToDiscord[kvp.Key], new PVCMultiDataPacket.VolTick()
+                            vols.Add(igToDiscord[ig], new PVCMultiDataPacket.VolTick()
                             {
-                                Ticker = kvp.Value.Ticker++,
+                                Ticker = volInfo.Ticker++,
                                 Volume = 0
                             });
+                            volInfo.LastSetVolume = 0;
                         }
                         //else that discord user isn't connected, shouldn't include their volume
                     }

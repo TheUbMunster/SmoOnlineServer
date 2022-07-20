@@ -186,8 +186,8 @@ server.PacketHandler = (c, p) =>
                 playerPacket.Rotation *= Quaternion.CreateFromRotationMatrix(Matrix4x4.CreateRotationX(MathF.PI))
                                          * Quaternion.CreateFromRotationMatrix(Matrix4x4.CreateRotationY(MathF.PI));
                 server.Broadcast(playerPacket, c);
-                string? stage = c.Metadata.ContainsKey("lastGamePacket") ? ((GamePacket?)c.Metadata["lastGamePacket"])?.Stage : null;
-                VoiceProxServer.Instance.OnPlayerUpdate(c.Name, playerPacket.Position, stage);
+                //string? stage = c.Metadata.ContainsKey("lastGamePacket") ? ((GamePacket?)c.Metadata["lastGamePacket"])?.Stage : null;
+                VoiceProxServer.Instance.OnPlayerUpdate(c.Name, playerPacket.Position);//, stage);
                 return false;
             }
         case PlayerPacket playerPacket when Settings.Instance.Flip.Enabled
@@ -205,8 +205,8 @@ server.PacketHandler = (c, p) =>
 
                     to.Send(sp, from);
                 });
-                string? stage = c.Metadata.ContainsKey("lastGamePacket") ? ((GamePacket?)c.Metadata["lastGamePacket"])?.Stage : null;
-                VoiceProxServer.Instance.OnPlayerUpdate(c.Name, playerPacket.Position, stage);
+                //string? stage = c.Metadata.ContainsKey("lastGamePacket") ? ((GamePacket?)c.Metadata["lastGamePacket"])?.Stage : null;
+                VoiceProxServer.Instance.OnPlayerUpdate(c.Name, playerPacket.Position);//, stage);
                 //UpdateProxChatDataForPlayer(c, (playerPacket.Position, scen, stage)); //this might also need to be in the other playerPacket case?
                 return false;
             }

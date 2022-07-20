@@ -356,7 +356,7 @@ namespace Server
                 //    SendPacket(igToPendingPackets[ingame], igToDiscord[ingame]);
                 //    igToPendingPackets.Remove(ingame);
                 //}
-                volCalc.SetIGDiscordAssoc(discord, ingame);
+                volCalc.SetIGDiscordAssoc(ingame, discord);
                 if (discordUserCount == 1 && before == 0)
                 {
                     //igToPos.Clear();
@@ -626,11 +626,11 @@ namespace Server
             HandleDisconnectEvent(ref netEvent);
         }
 
-        public void OnPlayerUpdate(string ingame, Vector3 pos, string? stage)
+        public void OnPlayerUpdate(string ingame, Vector3 pos)
         {
             AddMessage(() =>
             {
-                volCalc.OnRecieveUserData(ingame, pos, stage);
+                volCalc.OnRecieveUserData(ingame, pos);
             });
         }
 
