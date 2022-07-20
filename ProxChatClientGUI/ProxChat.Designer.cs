@@ -35,9 +35,9 @@
             this.settingsButton = new System.Windows.Forms.Button();
             this.connectDisconnectButton = new System.Windows.Forms.Button();
             this.mainTablePanel = new System.Windows.Forms.TableLayoutPanel();
-            this.userTablePanel = new System.Windows.Forms.TableLayoutPanel();
             this.globalButton = new System.Windows.Forms.Button();
             this.teamButton = new System.Windows.Forms.Button();
+            this.userFlowLayoutPanel = new System.Windows.Forms.FlowLayoutPanel();
             this.topbarLayout.SuspendLayout();
             this.mainTablePanel.SuspendLayout();
             this.SuspendLayout();
@@ -121,9 +121,9 @@
             this.mainTablePanel.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 85F));
             this.mainTablePanel.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 15F));
             this.mainTablePanel.Controls.Add(this.topbarLayout, 0, 0);
-            this.mainTablePanel.Controls.Add(this.userTablePanel, 0, 1);
             this.mainTablePanel.Controls.Add(this.globalButton, 1, 1);
             this.mainTablePanel.Controls.Add(this.teamButton, 1, 2);
+            this.mainTablePanel.Controls.Add(this.userFlowLayoutPanel, 0, 1);
             this.mainTablePanel.Dock = System.Windows.Forms.DockStyle.Fill;
             this.mainTablePanel.Location = new System.Drawing.Point(0, 0);
             this.mainTablePanel.Name = "mainTablePanel";
@@ -133,20 +133,6 @@
             this.mainTablePanel.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 50F));
             this.mainTablePanel.Size = new System.Drawing.Size(684, 361);
             this.mainTablePanel.TabIndex = 2;
-            // 
-            // userTablePanel
-            // 
-            this.userTablePanel.AutoScroll = true;
-            this.userTablePanel.ColumnCount = 1;
-            this.userTablePanel.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F));
-            this.userTablePanel.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.userTablePanel.Location = new System.Drawing.Point(3, 83);
-            this.userTablePanel.Name = "userTablePanel";
-            this.userTablePanel.RowCount = 1;
-            this.mainTablePanel.SetRowSpan(this.userTablePanel, 2);
-            this.userTablePanel.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 100F));
-            this.userTablePanel.Size = new System.Drawing.Size(575, 275);
-            this.userTablePanel.TabIndex = 2;
             // 
             // globalButton
             // 
@@ -172,6 +158,18 @@
             this.teamButton.MouseDown += new System.Windows.Forms.MouseEventHandler(this.teamButton_OnMouseDown);
             this.teamButton.MouseUp += new System.Windows.Forms.MouseEventHandler(this.teamButton_OnMouseUp);
             // 
+            // userFlowLayoutPanel
+            // 
+            this.userFlowLayoutPanel.AutoScroll = true;
+            this.userFlowLayoutPanel.AutoSize = true;
+            this.userFlowLayoutPanel.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.userFlowLayoutPanel.FlowDirection = System.Windows.Forms.FlowDirection.TopDown;
+            this.userFlowLayoutPanel.Location = new System.Drawing.Point(3, 83);
+            this.userFlowLayoutPanel.Name = "userFlowLayoutPanel";
+            this.mainTablePanel.SetRowSpan(this.userFlowLayoutPanel, 2);
+            this.userFlowLayoutPanel.Size = new System.Drawing.Size(575, 275);
+            this.userFlowLayoutPanel.TabIndex = 4;
+            // 
             // ProxChat
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
@@ -185,6 +183,7 @@
             this.topbarLayout.ResumeLayout(false);
             this.topbarLayout.PerformLayout();
             this.mainTablePanel.ResumeLayout(false);
+            this.mainTablePanel.PerformLayout();
             this.ResumeLayout(false);
 
         }
@@ -194,11 +193,11 @@
         private TableLayoutPanel topbarLayout;
         private Button settingsButton;
         private TableLayoutPanel mainTablePanel;
-        private TableLayoutPanel userTablePanel;
         private Button connectDisconnectButton;
         private Label identityLabel;
         private RichTextBox connectionStatusRTB;
         private Button globalButton;
         private Button teamButton;
+        private FlowLayoutPanel userFlowLayoutPanel;
     }
 }

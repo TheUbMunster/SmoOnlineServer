@@ -10,6 +10,9 @@
     <Compile Update="SettingsUI.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Update="StackPanel.cs">
+      <SubType>Component</SubType>
+    </Compile>
     <Compile Update="TextPopup.cs">
       <SubType>Form</SubType>
     </Compile>

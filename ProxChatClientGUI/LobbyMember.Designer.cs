@@ -45,6 +45,8 @@
             // 
             // userLayoutPanel
             // 
+            this.userLayoutPanel.AutoSize = true;
+            this.userLayoutPanel.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
             this.userLayoutPanel.ColumnCount = 4;
             this.userLayoutPanel.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 100F));
             this.userLayoutPanel.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 50F));
@@ -167,7 +169,9 @@
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+            this.AutoSize = true;
             this.Controls.Add(this.userLayoutPanel);
+            this.MaximumSize = new System.Drawing.Size(0, 100);
             this.Name = "LobbyMember";
             this.Size = new System.Drawing.Size(500, 100);
             this.userLayoutPanel.ResumeLayout(false);
@@ -176,6 +180,7 @@
             this.centerLayoutPanel.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)(this.volumeSlider)).EndInit();
             this.ResumeLayout(false);
+            this.PerformLayout();
 
         }
 

@@ -621,12 +621,6 @@ namespace ProxChatClientGUI
                         modelLogger.Info("All users in the lobby:\n" +
                             $"{string.Join(",\n", users.Select(x => $"{x.Id}: {x.Username}#{x.Discriminator}"))}");
                         long currId = currentUser!.Value.Id;
-                        ProxChat.Instance.AddMessage(() =>
-                        {
-                            var lm = ProxChat.Instance.GetLobbyMemberUI(currId);
-                            lm.Muted = lm.Muted;
-                            lm.Deaf = lm.Deaf;
-                        });
                         foreach (User u in users)
                         {
                             if (u.Id != currentUser!.Value.Id)

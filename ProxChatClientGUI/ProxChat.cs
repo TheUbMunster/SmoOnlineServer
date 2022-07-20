@@ -94,7 +94,7 @@ namespace ProxChatClientGUI
         private Logger viewLogger = new Logger("UI");
 
         private long? mainUserId = null;
-        private Dictionary<long, int> clientIdToDisplayIndex = new Dictionary<long, int>();
+        //private Dictionary<long, int> clientIdToDisplayIndex = new Dictionary<long, int>();
         private Dictionary<long, bool> isDirectHeldDown = new Dictionary<long, bool>();
         private bool isTeamHeldDown = false;
         private bool isGlobalHeldDown = false;
@@ -201,9 +201,15 @@ namespace ProxChatClientGUI
                 {
                     if (mainUserId != null)
                     {
-                        int row = clientIdToDisplayIndex[mainUserId.Value];
-                        var lm = userTablePanel.Controls.OfType<LobbyMember>().First(x => userTablePanel.GetRow(x) == row);
-                        lm.Deaf = !lm.Deaf;
+                        var lm = GetLobbyMemberUI(mainUserId!.Value);
+                        if (lm != null)
+                        {
+                            lm.Deaf = !lm.Deaf;
+                        }
+                        else
+                        {
+                            viewLogger.Warn("Couldn't deafen the user via keybind because their UI isn't loaded yet!");
+                        }
                     }
                     else
                     {
@@ -226,8 +232,7 @@ namespace ProxChatClientGUI
                             {
                                 if (mainUserId != null)
                                 {
-                                    int row = clientIdToDisplayIndex[mainUserId.Value];
-                                    var lm = userTablePanel.Controls.OfType<LobbyMember>().First(x => userTablePanel.GetRow(x) == row);
+                                    var lm = GetLobbyMemberUI(mainUserId!.Value);
                                     lm.Muted = !lm.Muted;
                                 }
                                 else
@@ -385,18 +390,20 @@ namespace ProxChatClientGUI
         {
             try
             {
-                if (!clientIdToDisplayIndex.ContainsKey(userId))
+                var lm = GetLobbyMemberUI(userId);
+                if (lm == null)
                 {
                     mainUserId = isSelf ? userId : mainUserId;
-                    LobbyMember lm = new LobbyMember();
+                    lm = new LobbyMember();
                     lm.SetVolumeSlider(Settings.Instance.VolumePrefs![username]); //do before set callback
                     lm.SetMuteButtonCallback((muted) => OnMuteChange(userId, muted));
                     lm.SetVolumeSliderCallback((byte vol) => OnChangeVolume(username, vol));
-                    lm.SetUsername(username);
+                    lm.SetUserInfo(username, userId);
                     if (isSelf)
                     {
                         lm.SetDeafButtonCallback((deaf) => OnDeafChange(deaf));
                         lm.RemoveSelfUI();
+                        SetIdentity(username, Settings.Instance.IngameName!);
                         //SHUFFLE UP SELF
                     }
                     else
@@ -406,20 +413,27 @@ namespace ProxChatClientGUI
                     }
                     lm.SetPercievedVolumeVisible(Settings.Instance.PercievedVolumeSliderEnabled!.Value);
                     lm.Dock = DockStyle.Fill;
-                    if (clientIdToDisplayIndex.Count == 0)
-                    {
-                        userTablePanel.Controls.Add(lm, 0, 0);
-                        clientIdToDisplayIndex[userId] = 0;
-                        SetIdentity(username, Settings.Instance.IngameName!);
-                    }
-                    else
-                    {
-                        userTablePanel.RowCount++;
-                        var rs = new RowStyle(userTablePanel.RowStyles[0].SizeType, userTablePanel.RowStyles[0].Height);
-                        userTablePanel.RowStyles.Add(rs);
-                        userTablePanel.Controls.Add(lm, 0, clientIdToDisplayIndex.Count);
-                        clientIdToDisplayIndex[userId] = clientIdToDisplayIndex.Count;
-                    }
+                    userFlowLayoutPanel.SuspendLayout();
+                    userFlowLayoutPanel.Controls.Add(lm);
+                    userFlowLayoutPanel.ResumeLayout(true);
+                    userFlowLayoutPanel.Refresh();
+                    //if (clientIdToDisplayIndex.Count == 0)
+                    //{
+                    //    clientIdToDisplayIndex[userId] = 0;
+                    //    SetIdentity(username, Settings.Instance.IngameName!);
+                    //}
+                    //else
+                    //{
+                    //    userTablePanel.RowCount++;
+                    //    var rs = new RowStyle(userTablePanel.RowStyles[0].SizeType, userTablePanel.RowStyles[0].Height);
+                    //    userTablePanel.RowStyles.Add(rs);
+                    //    userTablePanel.Controls.Add(lm, 0, clientIdToDisplayIndex.Count);
+                    //    clientIdToDisplayIndex[userId] = clientIdToDisplayIndex.Count;
+                    //}
+                }
+                else
+                {
+                    viewLogger.Warn("Attempt to add the same user to the UI more than once was made!");
                 }
             }
             catch (Exception ex)
@@ -432,34 +446,29 @@ namespace ProxChatClientGUI
         {
             try
             {
-                if (clientIdToDisplayIndex.ContainsKey(userId))
+                var lm = GetLobbyMemberUI(userId);
+                if (lm != null)
                 {
-                    int row = clientIdToDisplayIndex[userId];
-                    var lm = GetLobbyMemberUI(userId);
-                    if (lm != null)
-                    {
-                        userTablePanel.Controls.Remove(lm);
-                        lm.SetDeafButtonCallback(null);
-                        lm.SetMuteButtonCallback(null);
-                        lm.SetDirectButtonCallback(null);
-                        lm.SetVolumeSliderCallback(null);
-                        lm.DisposeUserImage();
-                        lm.Dispose();
-                        isDirectHeldDown.Remove(userId);
-                        clientIdToDisplayIndex.Remove(userId);
-                        if (clientIdToDisplayIndex.Count > 0)
-                        {
-                            for (int i = row; i < clientIdToDisplayIndex.Count; i++)
-                            {
-                                long userIdOfEntryBelow = clientIdToDisplayIndex.First(x => x.Value == i + 1).Key;
-                                LobbyMember lmn = (LobbyMember)userTablePanel.GetControlFromPosition(0, i + 1);
-                                userTablePanel.Controls.Remove(lmn);
-                                OnPressDirectButton(userIdOfEntryBelow, false);
-                                userTablePanel.Controls.Add(lmn, 0, i);
-                            }
-                            userTablePanel.RowCount--;
-                        }
-                    }
+                    userFlowLayoutPanel.Controls.Remove(lm);
+                    lm.SetDeafButtonCallback(null);
+                    lm.SetMuteButtonCallback(null);
+                    lm.SetDirectButtonCallback(null);
+                    lm.SetVolumeSliderCallback(null);
+                    lm.DisposeUserImage();
+                    lm.Dispose();
+                    isDirectHeldDown.Remove(userId);
+                    //if (clientIdToDisplayIndex.Count > 0)
+                    //{
+                    //    for (int i = row; i < clientIdToDisplayIndex.Count; i++)
+                    //    {
+                    //        long userIdOfEntryBelow = clientIdToDisplayIndex.First(x => x.Value == i + 1).Key;
+                    //        LobbyMember lmn = (LobbyMember)userTablePanel.GetControlFromPosition(0, i + 1);
+                    //        userTablePanel.Controls.Remove(lmn);
+                    //        OnPressDirectButton(userIdOfEntryBelow, false);
+                    //        userTablePanel.Controls.Add(lmn, 0, i);
+                    //    }
+                    //    userTablePanel.RowCount--;
+                    //}
                 }
             }
             catch (Exception ex)
@@ -470,33 +479,32 @@ namespace ProxChatClientGUI
 
         public void SetUserImage(long userId, uint width, uint height, byte[] imageData)
         {
-            if (clientIdToDisplayIndex.ContainsKey(userId))
+            try
             {
-                try
+                var lm = GetLobbyMemberUI(userId);
+                if (lm != null)
                 {
                     Bitmap output = new Bitmap((int)width, (int)height, PixelFormat.Format32bppArgb);
                     BitmapData bData = output.LockBits(new Rectangle(0, 0, (int)width, (int)height), ImageLockMode.WriteOnly, output.PixelFormat);
                     IntPtr ptr = bData.Scan0;
                     Marshal.Copy(imageData, 0, ptr, imageData.Length);
                     output.UnlockBits(bData);
-                    var lm = GetLobbyMemberUI(userId);
                     lm.SetUserImage(output);
                 }
-                catch (Exception e)
+                else
                 {
-                    viewLogger.Warn("Issue deserializing image: " + e.ToString());
+                    viewLogger.Warn("Tried to set an image for a user that wasn't present in the UI, maybe they disconnected really fast?");
                 }
             }
-            else
+            catch (Exception e)
             {
-                viewLogger.Warn("Tried to set an image for a user that wasn't present in the UI, maybe they disconnected really fast?");
+                viewLogger.Warn("Issue deserializing image: " + e.ToString());
             }
         }
 
-        public LobbyMember GetLobbyMemberUI(long userId)
+        public LobbyMember? GetLobbyMemberUI(long userId)
         {
-            int row = clientIdToDisplayIndex[userId];
-            return userTablePanel.Controls.OfType<LobbyMember>().First(x => userTablePanel.GetRow(x) == row);
+            return userFlowLayoutPanel.Controls.OfType<LobbyMember>().FirstOrDefault(x => x.UserId == userId);
         }
 
         public void SetCDCButton(bool connect = true)
@@ -628,7 +636,7 @@ namespace ProxChatClientGUI
 
         public void SetPercievedVolumeVisible(bool visible)
         {
-            foreach (var lm in userTablePanel.Controls.OfType<LobbyMember>())
+            foreach (var lm in userFlowLayoutPanel.Controls.OfType<LobbyMember>())
             {
                 lm.SetPercievedVolumeVisible(visible);
             }
@@ -638,9 +646,17 @@ namespace ProxChatClientGUI
         {
             if (mainUserId != null)
             {
-                int row = clientIdToDisplayIndex[mainUserId.Value];
-                var lm = userTablePanel.Controls.OfType<LobbyMember>().First(x => userTablePanel.GetRow(x) == row);
-                lm.Muted = muted;
+                //int row = clientIdToDisplayIndex[mainUserId.Value];
+                //var lm = userTablePanel.Controls.OfType<LobbyMember>().First(x => userTablePanel.GetRow(x) == row);
+                var lm = GetLobbyMemberUI(mainUserId!.Value);
+                if (lm != null)
+                {
+                    lm.Muted = muted;
+                }
+                else
+                {
+                    viewLogger.Warn("Tried to mute the user via PTT or PTM, but the UI element wasn't present.");
+                }
             }
             else
             {
@@ -651,10 +667,9 @@ namespace ProxChatClientGUI
         //call this as voiceprox vols change. (should be 100% if voiceprox is off).
         public void SetPercievedVolume(long userId, float percent)
         {
-            if (clientIdToDisplayIndex.ContainsKey(userId))
+            var lm = GetLobbyMemberUI(userId);
+            if (lm != null)
             {
-                int row = clientIdToDisplayIndex[userId];
-                var lm = userTablePanel.Controls.OfType<LobbyMember>().First(x => userTablePanel.GetRow(x) == row);
                 lm.SetPercievedVolumeLevel(percent);
             }
             else

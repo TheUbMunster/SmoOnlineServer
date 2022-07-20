@@ -81,6 +81,8 @@ namespace ProxChatClientGUI
             }
         }
 
+        public long? UserId { get; private set; }
+
         public LobbyMember()
         {
             InitializeComponent();
@@ -124,8 +126,9 @@ namespace ProxChatClientGUI
             userPicture.BackgroundImage = null;
         }
 
-        public void SetUsername(string username)
+        public void SetUserInfo(string username, long userId)
         {
+            UserId = userId;
             usernameLabel.Text = username;
         }
 
