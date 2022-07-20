@@ -84,7 +84,6 @@ namespace ProxChatClientGUI
         public LobbyMember()
         {
             InitializeComponent();
-            Capture = true;
             var font = new System.Drawing.Text.PrivateFontCollection();
             font.AddFontFile("Fonts\\Teko-Bold.ttf");
             usernameLabel.Font = new Font(Font.FontFamily, 16f, FontStyle.Bold, GraphicsUnit.Pixel);
@@ -212,12 +211,14 @@ namespace ProxChatClientGUI
 
         private void directSpeakButton_Click(object sender, MouseEventArgs e)
         {
+            Capture = true;
             lobbyMemberLogger.Info("Sending callback to direct speak to " + usernameLabel.Text);
             directCallback?.Invoke(true);
         }
 
         private void directSpeakButton_Release(object sender, MouseEventArgs e)
         {
+            Capture = false;
             lobbyMemberLogger.Info("Sending callback to no longer direct speak to " + usernameLabel.Text);
             directCallback?.Invoke(false);
         }

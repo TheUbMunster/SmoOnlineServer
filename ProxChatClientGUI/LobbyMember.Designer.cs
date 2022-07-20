@@ -71,7 +71,7 @@
             this.muteButton.Location = new System.Drawing.Point(103, 3);
             this.muteButton.Name = "muteButton";
             this.muteButton.Size = new System.Drawing.Size(44, 44);
-            this.muteButton.TabIndex = 1;
+            this.muteButton.TabIndex = 0;
             this.muteButton.Text = "mute";
             this.muteButton.UseVisualStyleBackColor = true;
             this.muteButton.Click += new System.EventHandler(this.muteButton_Click);
@@ -82,7 +82,7 @@
             this.deafenButton.Location = new System.Drawing.Point(103, 53);
             this.deafenButton.Name = "deafenButton";
             this.deafenButton.Size = new System.Drawing.Size(44, 44);
-            this.deafenButton.TabIndex = 2;
+            this.deafenButton.TabIndex = 1;
             this.deafenButton.Text = "deaf";
             this.deafenButton.UseVisualStyleBackColor = true;
             this.deafenButton.Click += new System.EventHandler(this.deafenButton_Click);
@@ -136,7 +136,7 @@
             this.volumeSlider.Maximum = 200;
             this.volumeSlider.Name = "volumeSlider";
             this.volumeSlider.Size = new System.Drawing.Size(238, 25);
-            this.volumeSlider.TabIndex = 5;
+            this.volumeSlider.TabIndex = 2;
             this.volumeSlider.TickStyle = System.Windows.Forms.TickStyle.None;
             this.volumeSlider.MouseUp += new System.Windows.Forms.MouseEventHandler(this.volumeSlider_MouseUp);
             // 

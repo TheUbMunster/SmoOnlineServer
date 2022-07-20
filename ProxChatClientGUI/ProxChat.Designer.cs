@@ -98,7 +98,7 @@
             this.settingsButton.Name = "settingsButton";
             this.topbarLayout.SetRowSpan(this.settingsButton, 2);
             this.settingsButton.Size = new System.Drawing.Size(74, 68);
-            this.settingsButton.TabIndex = 2;
+            this.settingsButton.TabIndex = 0;
             this.settingsButton.Text = "settings";
             this.settingsButton.UseVisualStyleBackColor = true;
             this.settingsButton.Click += new System.EventHandler(this.settingsButton_Click);
@@ -110,7 +110,7 @@
             this.connectDisconnectButton.Name = "connectDisconnectButton";
             this.topbarLayout.SetRowSpan(this.connectDisconnectButton, 2);
             this.connectDisconnectButton.Size = new System.Drawing.Size(74, 68);
-            this.connectDisconnectButton.TabIndex = 3;
+            this.connectDisconnectButton.TabIndex = 1;
             this.connectDisconnectButton.Text = "conn/disconn";
             this.connectDisconnectButton.UseVisualStyleBackColor = true;
             this.connectDisconnectButton.Click += new System.EventHandler(this.connectDisconnectButton_Click);
@@ -154,7 +154,7 @@
             this.globalButton.Location = new System.Drawing.Point(584, 83);
             this.globalButton.Name = "globalButton";
             this.globalButton.Size = new System.Drawing.Size(97, 134);
-            this.globalButton.TabIndex = 3;
+            this.globalButton.TabIndex = 2;
             this.globalButton.Text = "global";
             this.globalButton.UseVisualStyleBackColor = true;
             this.globalButton.MouseDown += new System.Windows.Forms.MouseEventHandler(this.globalButton_OnMouseDown);
@@ -166,7 +166,7 @@
             this.teamButton.Location = new System.Drawing.Point(584, 223);
             this.teamButton.Name = "teamButton";
             this.teamButton.Size = new System.Drawing.Size(97, 135);
-            this.teamButton.TabIndex = 4;
+            this.teamButton.TabIndex = 3;
             this.teamButton.Text = "team";
             this.teamButton.UseVisualStyleBackColor = true;
             this.teamButton.MouseDown += new System.Windows.Forms.MouseEventHandler(this.teamButton_OnMouseDown);

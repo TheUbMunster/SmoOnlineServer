@@ -14,6 +14,9 @@ using Shared;
 
 namespace Server
 {
+    /// <summary>
+    /// <b>Author: TheUbMunster</b><br></br><br></br>
+    /// </summary>
     class VoiceProxServer
     {
         public static VoiceProxServer Instance { get; private set; }
@@ -36,267 +39,273 @@ namespace Server
 
         private List<Peer> pendingClients = new List<Peer>();
 
-        public event Action<string, string>? OnClientConnect; //discord, ingame
-        public event Action<string>? OnClientDisconnect; //discord
+        private event Action<string, string>? OnClientConnect; //discord, ingame
+        private event Action<string>? OnClientDisconnect; //discord
 
-        private bool sendVolData = false;
-        private Dictionary<string, string> igToDiscord = new Dictionary<string, string>(); //dont clear this ever
-        private Dictionary<string, string> discordToIg = new Dictionary<string, string>(); //dont clear this ever
-        private Dictionary<string, Vector3> igToPos = new Dictionary<string, Vector3>();
-        private Dictionary<string, string?> igToStage = new Dictionary<string, string?>();
-        private Dictionary<string, Dictionary<string, float?>> igToIgsToDirtyVols = new Dictionary<string, Dictionary<string, float?>>(); //null = dont change
-        private Dictionary<string, Dictionary<string, float?>> igToIgsToLastSetVols = new Dictionary<string, Dictionary<string, float?>>();
-        private Dictionary<string, Dictionary<string, ulong>> igToIgsToTickers = new Dictionary<string, Dictionary<string, ulong>>();
-        private Dictionary<string, PVCWalkieTalkiePacket> discordToWalkieOverrides = new Dictionary<string, PVCWalkieTalkiePacket>();
-        private Dictionary<string, long> discordToSysTickCountOnRecieveWalkie = new Dictionary<string, long>();
-        private Dictionary<string, PVCMultiDataPacket> igToPendingPackets = new Dictionary<string, PVCMultiDataPacket>();
+        private VolumeCalculation volCalc = new VolumeCalculation();
 
-        private void EnsureEntryExists<T>(Dictionary<string, Dictionary<string, T>> dict, string first, string second)
-        {
-            if (!dict.ContainsKey(first))
-                dict.Add(first, new Dictionary<string, T>());
-            if (!dict[first].ContainsKey(second))
-                dict[first].Add(second, default(T)!);
-        }
+        private int discordUserCount = 0;
 
-        private void EnsureEntryExists<T>(Dictionary<string, Dictionary<string, T>> dict, string first)
-        {
-            if (!dict.ContainsKey(first))
-                dict.Add(first, new Dictionary<string, T>());
-        }
+        #region old volume stuff
+        //private Dictionary<string, string> igToDiscord = new Dictionary<string, string>(); //dont clear this ever
+        //private Dictionary<string, string> discordToIg = new Dictionary<string, string>(); //dont clear this ever
+        //private bool sendVolData = false; //send vol data as it's calculated to pvc clients (is voiceprox enabled?)
+        //private Dictionary<string, Vector3> igToPos = new Dictionary<string, Vector3>();
+        //private Dictionary<string, string?> igToStage = new Dictionary<string, string?>();
+        //private Dictionary<string, Dictionary<string, float?>> igToIgsToDirtyVols = new Dictionary<string, Dictionary<string, float?>>(); //null = dont change
+        //private Dictionary<string, Dictionary<string, float?>> igToIgsToLastSetVols = new Dictionary<string, Dictionary<string, float?>>();
+        //private Dictionary<string, Dictionary<string, ulong>> igToIgsToTickers = new Dictionary<string, Dictionary<string, ulong>>();
+        //private Dictionary<string, PVCWalkieTalkiePacket> discordToWalkieOverrides = new Dictionary<string, PVCWalkieTalkiePacket>();
+        //private Dictionary<string, long> discordToSysTickCountOnRecieveWalkie = new Dictionary<string, long>();
+        //private Dictionary<string, PVCMultiDataPacket> igToPendingPackets = new Dictionary<string, PVCMultiDataPacket>();
 
-        public void SetProxChatEnabled(bool enabled)
-        {
-            sendVolData = enabled;
-            if (!sendVolData)
-            {
-                //enable pvc, slience everyone
-                SendSetVolInfo(0);
-            }
-            else
-            {
-                //disable pvc, put everyone back to default
-                SendSetVolInfo(null);
-            }
-        }
+        //private void EnsureEntryExists<T>(Dictionary<string, Dictionary<string, T>> dict, string first, string second)
+        //{
+        //    if (!dict.ContainsKey(first))
+        //        dict.Add(first, new Dictionary<string, T>());
+        //    if (!dict[first].ContainsKey(second))
+        //        dict[first].Add(second, default(T)!);
+        //}
 
-        private void SendSetVolInfo(float? vol = null)
-        {
-            foreach (var perspective in igToIgsToDirtyVols)
-            {
-                Dictionary<string, PVCMultiDataPacket.VolTick> dict = new Dictionary<string, PVCMultiDataPacket.VolTick>();
-                foreach (var kvp in igToDiscord)
-                {
-                    if (kvp.Value != perspective.Key)
-                    {
-                        EnsureEntryExists(igToIgsToTickers, perspective.Key, kvp.Key);
-                        dict.Add(kvp.Value, new PVCMultiDataPacket.VolTick()
-                        {
-                            Volume = vol,
-                            Ticker = ++igToIgsToTickers[perspective.Key][kvp.Key]
-                        });
-                    }
-                }
-                var packet = new PVCMultiDataPacket()
-                {
-                    Volumes = dict
-                };
-                string recip = perspective.Key;
-                AddMessage(() =>
-                {
-                    if (igToDiscord.ContainsKey(recip))
-                        SendPacket(packet, igToDiscord[recip]);
-                    else
-                        igToPendingPackets[recip] = packet;
-                });
-            }
-        }
+        //private void EnsureEntryExists<T>(Dictionary<string, Dictionary<string, T>> dict, string first)
+        //{
+        //    if (!dict.ContainsKey(first))
+        //        dict.Add(first, new Dictionary<string, T>());
+        //}
 
-        private void WalkieTalkieCalculate()
-        {
-            List<string> toRemove = null!;
-            foreach (var kvp in discordToWalkieOverrides)
-            {
-                toRemove ??= new List<string>();
-                kvp.Value.KeepAliveMS -= (Environment.TickCount64 - discordToSysTickCountOnRecieveWalkie[kvp.Key]);
-                if (kvp.Value.KeepAliveMS > 0)
-                {
-                    //override the vol to null (client sets to default)
-                    switch (kvp.Value.GetWalkieMode())
-                    {
-                        case PVCWalkieTalkiePacket.WalkieMode.Individual:
-                            {
-                                EnsureEntryExists(igToIgsToDirtyVols, discordToIg[kvp.Value.SpecificDiscordRecipient!]);
-                                igToIgsToDirtyVols[discordToIg[kvp.Value.SpecificDiscordRecipient!]][discordToIg[kvp.Key]] = null;
-                                EnsureEntryExists(igToIgsToTickers, discordToIg[kvp.Value.SpecificDiscordRecipient!]);
-                                if (!igToIgsToTickers[discordToIg[kvp.Value.SpecificDiscordRecipient!]].ContainsKey(discordToIg[kvp.Key]))
-                                    igToIgsToTickers[discordToIg[kvp.Value.SpecificDiscordRecipient!]][discordToIg[kvp.Key]] = 0;
-                                else
-                                    igToIgsToTickers[discordToIg[kvp.Value.SpecificDiscordRecipient!]][discordToIg[kvp.Key]]++;
-                            }
-                            break;
-                        case PVCWalkieTalkiePacket.WalkieMode.Team:
-                            //TODO TODO TODO TODO TODO TODO TODO
-                            break;
-                        case PVCWalkieTalkiePacket.WalkieMode.Global:
-                            foreach (var kvp2 in igToDiscord)
-                            {
-                                if (kvp2.Key != discordToIg[kvp.Value.DiscordSource])
-                                {
-                                    //igToIgsToDirtyVols[kvp2.Key][discordToIg[kvp.Key]] = null;
+        //public void SetProxChatEnabled(bool enabled)
+        //{
+        //    sendVolData = enabled;
+        //    if (!sendVolData)
+        //    {
+        //        //enable pvc, slience everyone
+        //        SendSetVolInfo(0);
+        //    }
+        //    else
+        //    {
+        //        //disable pvc, put everyone back to default
+        //        SendSetVolInfo(null);
+        //    }
+        //}
 
-                                    EnsureEntryExists(igToIgsToDirtyVols, kvp2.Key);
-                                    igToIgsToDirtyVols[kvp2.Key][discordToIg[kvp.Key]] = null;
-                                    EnsureEntryExists(igToIgsToTickers, kvp2.Key);
-                                    if (!igToIgsToTickers[kvp2.Key].ContainsKey(discordToIg[kvp.Key]))
-                                        igToIgsToTickers[kvp2.Key][discordToIg[kvp.Key]] = 0;
-                                    else
-                                        igToIgsToTickers[kvp2.Key][discordToIg[kvp.Key]]++;
-                                }
-                            }
-                            break;
-                        default:
-                            break;
-                    }
-                }
-                else
-                {
-                    //TODO send last set vols instead?
-                    toRemove.Add(kvp.Key);
-                }
-            }
-            if (toRemove != null)
-                toRemove.ForEach(x => discordToWalkieOverrides.Remove(x));
-        }
+        //private void SendSetVolInfo(float? vol = null)
+        //{
+        //    foreach (var perspective in igToIgsToDirtyVols)
+        //    {
+        //        Dictionary<string, PVCMultiDataPacket.VolTick> dict = new Dictionary<string, PVCMultiDataPacket.VolTick>();
+        //        foreach (var kvp in igToDiscord)
+        //        {
+        //            if (kvp.Value != perspective.Key)
+        //            {
+        //                EnsureEntryExists(igToIgsToTickers, perspective.Key, kvp.Key);
+        //                dict.Add(kvp.Value, new PVCMultiDataPacket.VolTick()
+        //                {
+        //                    Volume = vol,
+        //                    Ticker = ++igToIgsToTickers[perspective.Key][kvp.Key]
+        //                });
+        //            }
+        //        }
+        //        var packet = new PVCMultiDataPacket()
+        //        {
+        //            Volumes = dict
+        //        };
+        //        string recip = perspective.Key;
+        //        AddMessage(() =>
+        //        {
+        //            if (igToDiscord.ContainsKey(recip))
+        //                SendPacket(packet, igToDiscord[recip]);
+        //            else
+        //                igToPendingPackets[recip] = packet;
+        //        });
+        //    }
+        //}
 
-        private void SendCachedVolInfo()
-        {
-            foreach (var perspective in igToIgsToDirtyVols)
-            {
-                var data = igToIgsToDirtyVols[perspective.Key].Where(x => x.Value != null);
-                if (data.Any())
-                {
-                    Dictionary<string, PVCMultiDataPacket.VolTick> vols = new Dictionary<string, PVCMultiDataPacket.VolTick>();
-                    foreach (var elem in data)
-                    {
-                        if (igToDiscord.ContainsKey(elem.Key))
-                        {
-                            //pvcLogger.Info($"Making {igToDiscord[perspective.Key]}'s volume for {igToDiscord[elem.Key]} = {elem.Value}.");
-                            vols.Add(igToDiscord[elem.Key], new PVCMultiDataPacket.VolTick()
-                            {
-                                Volume = elem.Value,
-                                Ticker = igToIgsToTickers[perspective.Key][elem.Key] //NO ++ here
-                            });
-                        }
-                    }
-                    var packet = new PVCMultiDataPacket() 
-                    {
-                        Volumes = vols
-                    };
-                    string recip = perspective.Key;
-                    AddMessage(() =>
-                    {
-                        if (igToDiscord.ContainsKey(recip))
-                            SendPacket(packet, igToDiscord[recip]);
-                        else
-                            igToPendingPackets[recip] = packet;
-                    });
-                    igToIgsToDirtyVols[perspective.Key].Clear();
-                }
-            }
-        }
+        //private void WalkieTalkieCalculate()
+        //{
+        //    List<string> toRemove = null!;
+        //    foreach (var kvp in discordToWalkieOverrides)
+        //    {
+        //        toRemove ??= new List<string>();
+        //        kvp.Value.KeepAliveMS -= (Environment.TickCount64 - discordToSysTickCountOnRecieveWalkie[kvp.Key]);
+        //        if (kvp.Value.KeepAliveMS > 0)
+        //        {
+        //            //override the vol to null (client sets to default)
+        //            switch (kvp.Value.GetWalkieMode())
+        //            {
+        //                case PVCWalkieTalkiePacket.WalkieMode.Individual:
+        //                    {
+        //                        EnsureEntryExists(igToIgsToDirtyVols, discordToIg[kvp.Value.SpecificDiscordRecipient!]);
+        //                        igToIgsToDirtyVols[discordToIg[kvp.Value.SpecificDiscordRecipient!]][discordToIg[kvp.Key]] = null;
+        //                        EnsureEntryExists(igToIgsToTickers, discordToIg[kvp.Value.SpecificDiscordRecipient!]);
+        //                        if (!igToIgsToTickers[discordToIg[kvp.Value.SpecificDiscordRecipient!]].ContainsKey(discordToIg[kvp.Key]))
+        //                            igToIgsToTickers[discordToIg[kvp.Value.SpecificDiscordRecipient!]][discordToIg[kvp.Key]] = 0;
+        //                        else
+        //                            igToIgsToTickers[discordToIg[kvp.Value.SpecificDiscordRecipient!]][discordToIg[kvp.Key]]++;
+        //                    }
+        //                    break;
+        //                case PVCWalkieTalkiePacket.WalkieMode.Team:
+        //                    //TODO TODO TODO TODO TODO TODO TODO
+        //                    break;
+        //                case PVCWalkieTalkiePacket.WalkieMode.Global:
+        //                    foreach (var kvp2 in igToDiscord)
+        //                    {
+        //                        if (kvp2.Key != discordToIg[kvp.Value.DiscordSource])
+        //                        {
+        //                            //igToIgsToDirtyVols[kvp2.Key][discordToIg[kvp.Key]] = null;
 
-        public void OnPlayerUpdate(string igPlayer, Vector3 pos, string? stage, bool disableForMismatchingScenesOnly = false)
-        {
-            AddMessage(() =>
-            {
-                const float soundEpsilon = 0.01f; //what percent volume change results in an update in the client's volumes.
-                float ClampedInvLerp(float a, float b, float v)
-                {
-                    return v < a ? 0 : (v > b ? 1 : (v - a) / (b - a)); //see "linear interpolation"
-                }
+        //                            EnsureEntryExists(igToIgsToDirtyVols, kvp2.Key);
+        //                            igToIgsToDirtyVols[kvp2.Key][discordToIg[kvp.Key]] = null;
+        //                            EnsureEntryExists(igToIgsToTickers, kvp2.Key);
+        //                            if (!igToIgsToTickers[kvp2.Key].ContainsKey(discordToIg[kvp.Key]))
+        //                                igToIgsToTickers[kvp2.Key][discordToIg[kvp.Key]] = 0;
+        //                            else
+        //                                igToIgsToTickers[kvp2.Key][discordToIg[kvp.Key]]++;
+        //                        }
+        //                    }
+        //                    break;
+        //                default:
+        //                    break;
+        //            }
+        //        }
+        //        else
+        //        {
+        //            //TODO send last set vols instead?
+        //            toRemove.Add(kvp.Key);
+        //        }
+        //    }
+        //    if (toRemove != null)
+        //        toRemove.ForEach(x => discordToWalkieOverrides.Remove(x));
+        //}
 
-                igToStage[igPlayer] = stage;
-                if (!disableForMismatchingScenesOnly)
-                    igToPos[igPlayer] = pos;
-                EnsureEntryExists(igToIgsToDirtyVols, igPlayer);
-                EnsureEntryExists(igToIgsToLastSetVols, igPlayer);
-                EnsureEntryExists(igToIgsToTickers, igPlayer);
-                foreach (var kvp in igToPos)
-                {
-                    if (kvp.Key == igPlayer)
-                        continue;
-                    EnsureEntryExists(igToIgsToDirtyVols, kvp.Key);
-                    EnsureEntryExists(igToIgsToLastSetVols, kvp.Key);
-                    EnsureEntryExists(igToIgsToTickers, kvp.Key);
-                    if (disableForMismatchingScenesOnly)
-                    {
-                        if ((igToStage[igPlayer] ?? "dont make") != (igToStage[kvp.Key] ?? "these equal"))
-                        {
-                            if (!igToIgsToTickers[kvp.Key].ContainsKey(igPlayer))
-                                igToIgsToTickers[kvp.Key][igPlayer] = 0;
-                            else
-                                igToIgsToTickers[kvp.Key][igPlayer]++;
+        //private void SendCachedVolInfo()
+        //{
+        //    foreach (var perspective in igToIgsToDirtyVols)
+        //    {
+        //        var data = igToIgsToDirtyVols[perspective.Key].Where(x => x.Value != null);
+        //        if (data.Any())
+        //        {
+        //            Dictionary<string, PVCMultiDataPacket.VolTick> vols = new Dictionary<string, PVCMultiDataPacket.VolTick>();
+        //            foreach (var elem in data)
+        //            {
+        //                if (igToDiscord.ContainsKey(elem.Key))
+        //                {
+        //                    //pvcLogger.Info($"Making {igToDiscord[perspective.Key]}'s volume for {igToDiscord[elem.Key]} = {elem.Value}.");
+        //                    vols.Add(igToDiscord[elem.Key], new PVCMultiDataPacket.VolTick()
+        //                    {
+        //                        Volume = elem.Value,
+        //                        Ticker = igToIgsToTickers[perspective.Key][elem.Key] //NO ++ here
+        //                    });
+        //                }
+        //            }
+        //            var packet = new PVCMultiDataPacket() 
+        //            {
+        //                Volumes = vols
+        //            };
+        //            string recip = perspective.Key;
+        //            AddMessage(() =>
+        //            {
+        //                if (igToDiscord.ContainsKey(recip))
+        //                    SendPacket(packet, igToDiscord[recip]);
+        //                else
+        //                    igToPendingPackets[recip] = packet;
+        //            });
+        //            igToIgsToDirtyVols[perspective.Key].Clear();
+        //        }
+        //    }
+        //}
 
-                            if (!igToIgsToTickers[igPlayer].ContainsKey(kvp.Key))
-                                igToIgsToTickers[igPlayer][kvp.Key] = 0;
-                            else
-                                igToIgsToTickers[igPlayer][kvp.Key]++;
+        //public void OnPlayerUpdate(string igPlayer, Vector3 pos, string? stage, bool disableForMismatchingScenesOnly = false)
+        //{
+        //    AddMessage(() =>
+        //    {
+        //        const float soundEpsilon = 0.01f; //what percent volume change results in an update in the client's volumes.
+        //        float ClampedInvLerp(float a, float b, float v)
+        //        {
+        //            return v < a ? 0 : (v > b ? 1 : (v - a) / (b - a)); //see "linear interpolation"
+        //        }
 
-                            igToIgsToDirtyVols[kvp.Key][igPlayer] = 0;
-                            igToIgsToDirtyVols[igPlayer][kvp.Key] = 0;
-                            igToIgsToLastSetVols[kvp.Key][igPlayer] = 0;
-                            igToIgsToLastSetVols[igPlayer][kvp.Key] = 0;
-                        }
-                        continue;
-                    }
-                    float dist = Vector3.Distance(kvp.Value, igToPos[igPlayer]);
-                    float setVol;
-                    if ((igToStage[igPlayer] ?? "dont make") != (igToStage[kvp.Key] ?? "these equal"))
-                    {
-                        //if both were null then != would fail, but the ??'s with the nonequal strings makes sure that they don't
-                        //stages aren't the same *or* both stages are null
-                        setVol = 0f;
-                    }
-                    else if (dist > Settings.Instance.Discord.BeginHearingThreshold)
-                    {
-                        //too quiet (0%)
-                        setVol = 0f;
-                    }
-                    else if (dist < Settings.Instance.Discord.FullHearingThreshold)
-                    {
-                        //full vol (100%)
-                        setVol = 1f;
-                    }
-                    else
-                    {
-                        setVol = 1f - ClampedInvLerp(Settings.Instance.Discord.FullHearingThreshold, Settings.Instance.Discord.BeginHearingThreshold, dist);
-                        //semi-linearize from 1/((dist^2)*log(dist))
-                        setVol *= setVol; //may sound better without this.
-                    }
-                    float oldVol = (igToIgsToLastSetVols[kvp.Key].ContainsKey(igPlayer) ? igToIgsToLastSetVols[kvp.Key][igPlayer] ?? -100000f : -100000f); //if was never set, must set
-                    if (Math.Abs(oldVol - setVol) > soundEpsilon || (setVol == 0 && oldVol != 0) || (setVol == 1 && oldVol != 1))
-                    {
-                        //must change
-                        if (!igToIgsToTickers[kvp.Key].ContainsKey(igPlayer))
-                            igToIgsToTickers[kvp.Key][igPlayer] = 0;
-                        else
-                            igToIgsToTickers[kvp.Key][igPlayer]++;
+        //        igToStage[igPlayer] = stage;
+        //        if (!disableForMismatchingScenesOnly)
+        //            igToPos[igPlayer] = pos;
+        //        EnsureEntryExists(igToIgsToDirtyVols, igPlayer);
+        //        EnsureEntryExists(igToIgsToLastSetVols, igPlayer);
+        //        EnsureEntryExists(igToIgsToTickers, igPlayer);
+        //        foreach (var kvp in igToPos)
+        //        {
+        //            if (kvp.Key == igPlayer)
+        //                continue;
+        //            EnsureEntryExists(igToIgsToDirtyVols, kvp.Key);
+        //            EnsureEntryExists(igToIgsToLastSetVols, kvp.Key);
+        //            EnsureEntryExists(igToIgsToTickers, kvp.Key);
+        //            if (disableForMismatchingScenesOnly)
+        //            {
+        //                if ((igToStage[igPlayer] ?? "dont make") != (igToStage[kvp.Key] ?? "these equal"))
+        //                {
+        //                    if (!igToIgsToTickers[kvp.Key].ContainsKey(igPlayer))
+        //                        igToIgsToTickers[kvp.Key][igPlayer] = 0;
+        //                    else
+        //                        igToIgsToTickers[kvp.Key][igPlayer]++;
 
-                        if (!igToIgsToTickers[igPlayer].ContainsKey(kvp.Key))
-                            igToIgsToTickers[igPlayer][kvp.Key] = 0;
-                        else
-                            igToIgsToTickers[igPlayer][kvp.Key]++;
+        //                    if (!igToIgsToTickers[igPlayer].ContainsKey(kvp.Key))
+        //                        igToIgsToTickers[igPlayer][kvp.Key] = 0;
+        //                    else
+        //                        igToIgsToTickers[igPlayer][kvp.Key]++;
 
-                        igToIgsToDirtyVols[kvp.Key][igPlayer] = setVol;
-                        igToIgsToDirtyVols[igPlayer][kvp.Key] = setVol;
-                        igToIgsToLastSetVols[kvp.Key][igPlayer] = setVol;
-                        igToIgsToLastSetVols[igPlayer][kvp.Key] = setVol;
-                    }
-                    //else //no need to change
-                }
-            });
-        }
+        //                    igToIgsToDirtyVols[kvp.Key][igPlayer] = 0;
+        //                    igToIgsToDirtyVols[igPlayer][kvp.Key] = 0;
+        //                    igToIgsToLastSetVols[kvp.Key][igPlayer] = 0;
+        //                    igToIgsToLastSetVols[igPlayer][kvp.Key] = 0;
+        //                }
+        //                continue;
+        //            }
+        //            float dist = Vector3.Distance(kvp.Value, igToPos[igPlayer]);
+        //            float setVol;
+        //            if ((igToStage[igPlayer] ?? "dont make") != (igToStage[kvp.Key] ?? "these equal"))
+        //            {
+        //                //if both were null then != would fail, but the ??'s with the nonequal strings makes sure that they don't
+        //                //stages aren't the same *or* both stages are null
+        //                setVol = 0f;
+        //            }
+        //            else if (dist > Settings.Instance.Discord.BeginHearingThreshold)
+        //            {
+        //                //too quiet (0%)
+        //                setVol = 0f;
+        //            }
+        //            else if (dist < Settings.Instance.Discord.FullHearingThreshold)
+        //            {
+        //                //full vol (100%)
+        //                setVol = 1f;
+        //            }
+        //            else
+        //            {
+        //                setVol = 1f - ClampedInvLerp(Settings.Instance.Discord.FullHearingThreshold, Settings.Instance.Discord.BeginHearingThreshold, dist);
+        //                //semi-linearize from 1/((dist^2)*log(dist))
+        //                setVol *= setVol; //may sound better without this.
+        //            }
+        //            float oldVol = (igToIgsToLastSetVols[kvp.Key].ContainsKey(igPlayer) ? igToIgsToLastSetVols[kvp.Key][igPlayer] ?? -100000f : -100000f); //if was never set, must set
+        //            if (Math.Abs(oldVol - setVol) > soundEpsilon || (setVol == 0 && oldVol != 0) || (setVol == 1 && oldVol != 1))
+        //            {
+        //                //must change
+        //                if (!igToIgsToTickers[kvp.Key].ContainsKey(igPlayer))
+        //                    igToIgsToTickers[kvp.Key][igPlayer] = 0;
+        //                else
+        //                    igToIgsToTickers[kvp.Key][igPlayer]++;
+
+        //                if (!igToIgsToTickers[igPlayer].ContainsKey(kvp.Key))
+        //                    igToIgsToTickers[igPlayer][kvp.Key] = 0;
+        //                else
+        //                    igToIgsToTickers[igPlayer][kvp.Key]++;
+
+        //                igToIgsToDirtyVols[kvp.Key][igPlayer] = setVol;
+        //                igToIgsToDirtyVols[igPlayer][kvp.Key] = setVol;
+        //                igToIgsToLastSetVols[kvp.Key][igPlayer] = setVol;
+        //                igToIgsToLastSetVols[igPlayer][kvp.Key] = setVol;
+        //            }
+        //            //else //no need to change
+        //        }
+        //    });
+        //}
+        #endregion
 
         private VoiceProxServer()
         {
@@ -338,26 +347,28 @@ namespace Server
             server.Create(adr, 16); //discord voice cannot support more than 16 people per lobby.
             OnClientConnect += (string discord, string ingame) =>
             {
-                int before = igToDiscord.Count;
-                igToDiscord[ingame] = discord;
-                discordToIg[discord] = ingame;
-                if (igToPendingPackets.ContainsKey(ingame))
+                int before = discordUserCount++;
+                //int before = igToDiscord.Count;
+                //igToDiscord[ingame] = discord;
+                //discordToIg[discord] = ingame;
+                //if (igToPendingPackets.ContainsKey(ingame))
+                //{
+                //    SendPacket(igToPendingPackets[ingame], igToDiscord[ingame]);
+                //    igToPendingPackets.Remove(ingame);
+                //}
+                volCalc.SetIGDiscordAssoc(discord, ingame);
+                if (discordUserCount == 1 && before == 0)
                 {
-                    SendPacket(igToPendingPackets[ingame], igToDiscord[ingame]);
-                    igToPendingPackets.Remove(ingame);
-                }
-                if (igToDiscord.Count == 1 && before == 0)
-                {
-                    igToPos.Clear();
-                    igToStage.Clear();
-                    igToIgsToDirtyVols.Clear();
-                    igToIgsToLastSetVols.Clear();
-                    igToIgsToTickers.Clear();
+                    //igToPos.Clear();
+                    //igToStage.Clear();
+                    //igToIgsToDirtyVols.Clear();
+                    //igToIgsToLastSetVols.Clear();
+                    //igToIgsToTickers.Clear();
                     DiscordBot.Instance.CloseThenOpenPVCLobby().ContinueWith((task) =>
                     {
                         if (!task.Result)
                         {
-
+                            pvcLogger.Warn("CloseThenOpenPVCLobby failed.");
                         }
                         else
                         {
@@ -368,11 +379,27 @@ namespace Server
                         }
                     });
                 }
+                else
+                {
+                    //var packet = volCalc.GetCorrectVolumePacketForUser(discord);
+                    var packet = volCalc.GetZeroedVolumePacketForUser(discord);
+                    if (packet != null)
+                        AddMessage(() =>
+                        {
+                            SendPacket(packet, discord);
+                        });
+                }
             };
             OnClientDisconnect += (string discord) =>
             {
-                igToDiscord.Remove(discordToIg[discord]);
-                discordToIg.Remove(discord);
+                StringBuilder mesg = new StringBuilder("OnClientDisconnect: " + discord);
+                discordUserCount--;
+                bool success = volCalc.RemoveIGDiscordAssocIfExists(discord);
+                if (success)
+                    mesg.Append($", for some reason they weren't in the ig-discord association.");
+                pvcLogger.Info(mesg.ToString());
+                //igToDiscord.Remove(discordToIg[discord]);
+                //discordToIg.Remove(discord);
             };
             Task.Run(Loop);
         }
@@ -447,10 +474,16 @@ namespace Server
                         Console.WriteLine($"Issue in message loop: {ex.ToString()}");
                     }
                     //WalkieTalkieCalculate();
-                    if (sendVolData)
+                    //if (sendVolData)
+                    //{
+                    //    SendCachedVolInfo();
+                    //}
+                    volCalc.GetVolumePacketsForThisFrameAndClearCache().ForEach(x =>
                     {
-                        SendCachedVolInfo();
-                    }
+                        //no addmessage, we're already locked
+                        //if (igToDiscord.ContainsKey(x.igRecipient))
+                        SendPacket(x.packet, x.discordRecipient);
+                    });
                 }
                 sw.Stop();
                 waitTime = frameTime - (int)sw.ElapsedMilliseconds;
@@ -480,6 +513,8 @@ namespace Server
             }
             else
             {
+                //a peer having an id of 0 means that the peer is the "server" and we're the "client"
+                //the server should never be a "client", so getting a peer with id 0 doesn't make sense.
                 pvcLogger.Info("Strange client timeout with id 0.");
             }
         }
@@ -498,7 +533,7 @@ namespace Server
                                 //the user is enabling team *or* global vc *or* individual vc
                                 //pvcLogger.Info($"Got walkie packet: recip: {walkiePacket.SpecificRecipient ?? "null"}, teamonly: {walkiePacket.TeamOnly}");
 
-
+                                volCalc.OnRecieveWalkieTalkie(walkiePacket);
                                 //if (discordToWalkieOverrides.ContainsKey(walkiePacket.DiscordSource))
                                 //{
                                 //    if (discordToWalkieOverrides[walkiePacket.DiscordSource].WalkieTick < walkiePacket.WalkieTick)
@@ -591,6 +626,38 @@ namespace Server
             HandleDisconnectEvent(ref netEvent);
         }
 
+        public void OnPlayerUpdate(string ingame, Vector3 pos, string? stage)
+        {
+            AddMessage(() =>
+            {
+                volCalc.OnRecieveUserData(ingame, pos, stage);
+            });
+        }
+
+        public void OnPlayerUpdate(string ingame, string? stage)
+        {
+            AddMessage(() =>
+            {
+                volCalc.OnRecieveUserData(ingame, stage);
+            });
+        }
+
+        public void OnPlayerUpdate(string ingame, VolumeCalculation.Team team)
+        {
+            AddMessage(() =>
+            {
+                volCalc.OnRecieveUserData(ingame, team);
+            });
+        }
+
+        public void SetProxChatEnabled(bool enabled)
+        {
+            AddMessage(() =>
+            {
+                volCalc.SetVoiceProxEnabled(enabled);
+            });
+        }
+
         public void KickUserIfConnected(IPAddress addr)
         {
             Peer? p = null;
@@ -657,14 +724,6 @@ namespace Server
             return ip;
         }
 
-        public void AddMessage(Action message)
-        {
-            lock (messageKey)
-            {
-                messageQueue.Enqueue(message);
-            }
-        }
-
         public void SendLobbyPacketsToPending()
         {
             var lobbyInfo = DiscordBot.Instance.GetLobbyInfo();
@@ -693,6 +752,14 @@ namespace Server
                     }
                     pendingClients.Clear();
                 });
+            }
+        }
+
+        public void AddMessage(Action message)
+        {
+            lock (messageKey)
+            {
+                messageQueue.Enqueue(message);
             }
         }
 

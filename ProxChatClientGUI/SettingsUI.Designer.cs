@@ -104,7 +104,7 @@
             this.toggleDeafenTextBox.Name = "toggleDeafenTextBox";
             this.toggleDeafenTextBox.ReadOnly = true;
             this.toggleDeafenTextBox.Size = new System.Drawing.Size(343, 23);
-            this.toggleDeafenTextBox.TabIndex = 24;
+            this.toggleDeafenTextBox.TabIndex = 9;
             this.toggleDeafenTextBox.Click += new System.EventHandler(this.toggleDeafen_click);
             // 
             // pushToActionTextBox
@@ -114,7 +114,7 @@
             this.pushToActionTextBox.Name = "pushToActionTextBox";
             this.pushToActionTextBox.ReadOnly = true;
             this.pushToActionTextBox.Size = new System.Drawing.Size(343, 23);
-            this.pushToActionTextBox.TabIndex = 23;
+            this.pushToActionTextBox.TabIndex = 8;
             this.pushToActionTextBox.Click += new System.EventHandler(this.actionKey_click);
             // 
             // pushToGlobalTextBox
@@ -124,7 +124,7 @@
             this.pushToGlobalTextBox.Name = "pushToGlobalTextBox";
             this.pushToGlobalTextBox.ReadOnly = true;
             this.pushToGlobalTextBox.Size = new System.Drawing.Size(343, 23);
-            this.pushToGlobalTextBox.TabIndex = 22;
+            this.pushToGlobalTextBox.TabIndex = 7;
             this.pushToGlobalTextBox.Click += new System.EventHandler(this.pushToGlobal_click);
             // 
             // pushToTeamTextBox
@@ -134,7 +134,7 @@
             this.pushToTeamTextBox.Name = "pushToTeamTextBox";
             this.pushToTeamTextBox.ReadOnly = true;
             this.pushToTeamTextBox.Size = new System.Drawing.Size(343, 23);
-            this.pushToTeamTextBox.TabIndex = 21;
+            this.pushToTeamTextBox.TabIndex = 6;
             this.pushToTeamTextBox.Click += new System.EventHandler(this.pushToTeam_click);
             // 
             // defaultVolumeTextBox
@@ -143,7 +143,7 @@
             this.defaultVolumeTextBox.Location = new System.Drawing.Point(288, 131);
             this.defaultVolumeTextBox.Name = "defaultVolumeTextBox";
             this.defaultVolumeTextBox.Size = new System.Drawing.Size(343, 23);
-            this.defaultVolumeTextBox.TabIndex = 19;
+            this.defaultVolumeTextBox.TabIndex = 4;
             // 
             // serverHostTextBox
             // 
@@ -151,7 +151,7 @@
             this.serverHostTextBox.Location = new System.Drawing.Point(288, 67);
             this.serverHostTextBox.Name = "serverHostTextBox";
             this.serverHostTextBox.Size = new System.Drawing.Size(343, 23);
-            this.serverHostTextBox.TabIndex = 18;
+            this.serverHostTextBox.TabIndex = 2;
             // 
             // serverPortTextBox
             // 
@@ -159,7 +159,7 @@
             this.serverPortTextBox.Location = new System.Drawing.Point(288, 35);
             this.serverPortTextBox.Name = "serverPortTextBox";
             this.serverPortTextBox.Size = new System.Drawing.Size(343, 23);
-            this.serverPortTextBox.TabIndex = 17;
+            this.serverPortTextBox.TabIndex = 1;
             // 
             // toggleDeafenLabel
             // 
@@ -266,7 +266,7 @@
             this.igUsernameTextBox.Location = new System.Drawing.Point(288, 3);
             this.igUsernameTextBox.Name = "igUsernameTextBox";
             this.igUsernameTextBox.Size = new System.Drawing.Size(343, 23);
-            this.igUsernameTextBox.TabIndex = 1;
+            this.igUsernameTextBox.TabIndex = 0;
             // 
             // speakModeComboBox
             // 
@@ -280,7 +280,7 @@
             this.speakModeComboBox.Location = new System.Drawing.Point(288, 163);
             this.speakModeComboBox.Name = "speakModeComboBox";
             this.speakModeComboBox.Size = new System.Drawing.Size(343, 23);
-            this.speakModeComboBox.TabIndex = 20;
+            this.speakModeComboBox.TabIndex = 5;
             // 
             // confirmButton
             // 
@@ -289,7 +289,7 @@
             this.confirmButton.Location = new System.Drawing.Point(3, 323);
             this.confirmButton.Name = "confirmButton";
             this.confirmButton.Size = new System.Drawing.Size(628, 35);
-            this.confirmButton.TabIndex = 25;
+            this.confirmButton.TabIndex = 10;
             this.confirmButton.Text = "Confirm";
             this.confirmButton.UseVisualStyleBackColor = true;
             this.confirmButton.Click += new System.EventHandler(this.confirmButton_Click);
@@ -313,7 +313,7 @@
             this.percievedVolumeCheckBox.Location = new System.Drawing.Point(288, 99);
             this.percievedVolumeCheckBox.Name = "percievedVolumeCheckBox";
             this.percievedVolumeCheckBox.Size = new System.Drawing.Size(343, 26);
-            this.percievedVolumeCheckBox.TabIndex = 27;
+            this.percievedVolumeCheckBox.TabIndex = 3;
             this.percievedVolumeCheckBox.Text = "Enable Per-User Percieved Volume Display";
             this.percievedVolumeCheckBox.UseVisualStyleBackColor = true;
             // 

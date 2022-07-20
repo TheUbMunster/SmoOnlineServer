@@ -30,7 +30,7 @@ namespace Shared
         }
         //because udp doesn't guarantee order, ticker is a value indicating when the value was generated.
         //this is used by the client to make sure that if it tries to set the volume of a user, it isn't
-        //outdated.
+        //outdated (client will save the ticker value and only set volume from a packet if it's ticker is higher).
         public Dictionary<string, VolTick> Volumes { get; set; } = null!;
 
         public PVCMultiDataPacket()

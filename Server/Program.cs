@@ -97,7 +97,7 @@ server.PacketHandler = (c, p) =>
                 c.Metadata["scenario"] = gamePacket.ScenarioNum;
                 c.Metadata["2d"] = gamePacket.Is2d;
                 c.Metadata["lastGamePacket"] = gamePacket;
-                VoiceProxServer.Instance.OnPlayerUpdate(c.Name, Vector3.Zero, gamePacket.Stage, true);
+                VoiceProxServer.Instance.OnPlayerUpdate(c.Name, gamePacket.Stage);
                 switch (gamePacket.Stage)
                 {
                     case "CapWorldHomeStage" when gamePacket.ScenarioNum == 0:
@@ -146,9 +146,16 @@ server.PacketHandler = (c, p) =>
             }
         case TagPacket tagPacket:
             {
-                if ((tagPacket.UpdateType & TagPacket.TagUpdate.State) != 0) c.Metadata["seeking"] = tagPacket.IsIt;
-                if ((tagPacket.UpdateType & TagPacket.TagUpdate.Time) != 0)
-                    c.Metadata["time"] = new Time(tagPacket.Minutes, tagPacket.Seconds, DateTime.Now);
+                {
+                    if ((tagPacket.UpdateType & TagPacket.TagUpdate.State) != 0)
+                    { 
+                        c.Metadata["seeking"] = tagPacket.IsIt;
+                        VoiceProxServer.Instance.OnPlayerUpdate(c.Name, 
+                            tagPacket.IsIt ? VolumeCalculation.Team.Seekers : VolumeCalculation.Team.Hiders);
+                    }
+                    if ((tagPacket.UpdateType & TagPacket.TagUpdate.Time) != 0)
+                        c.Metadata["time"] = new Time(tagPacket.Minutes, tagPacket.Seconds, DateTime.Now);
+                }
                 break;
             }
         case CostumePacket:
