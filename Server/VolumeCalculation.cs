@@ -202,20 +202,20 @@ namespace Server
                 if (!igToIgsToVols.ContainsKey(igPlayer))
                     igToIgsToVols[igPlayer] = new Dictionary<string, UserVolInfo>();
                 //check if anyone is broadcasting in the walkie talkie dict
-                foreach (string ig in igs)
-                {
-                    if (ig == igPlayer)
-                        continue;
-                    //ig <-> igPlayer
-                    UserVolInfo volInfo = null!;
-                    if (!igToIgsToVols.ContainsKey(ig))
-                        igToIgsToVols[ig] = new Dictionary<string, UserVolInfo>();
-                    if (!igToIgsToVols[ig].ContainsKey(igPlayer))
-                        volInfo = igToIgsToVols[igPlayer][ig] = igToIgsToVols[ig][igPlayer] = new UserVolInfo();
-                    volInfo ??= igToIgsToVols[igPlayer][ig];
+                //foreach (string ig in igs)
+                //{
+                //    if (ig == igPlayer)
+                //        continue;
+                //    //ig <-> igPlayer
+                //    UserVolInfo volInfo = null!;
+                //    if (!igToIgsToVols.ContainsKey(ig))
+                //        igToIgsToVols[ig] = new Dictionary<string, UserVolInfo>();
+                //    if (!igToIgsToVols[ig].ContainsKey(igPlayer))
+                //        volInfo = igToIgsToVols[igPlayer][ig] = igToIgsToVols[ig][igPlayer] = new UserVolInfo();
+                //    volInfo ??= igToIgsToVols[igPlayer][ig];
 
-                    //actual calculation
-                }
+                //    //actual calculation
+                //}
             }
         }
 
