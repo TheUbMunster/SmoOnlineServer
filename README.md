@@ -40,8 +40,10 @@ FullHearingThreshold: the in-game distance at which someone who's close doesn't 
 ## Setup
 
 ### Server
-Setup for this server as opposed to the official server is very similar, no action needs to be taken unless/until you want to enable the voice proximity feature,
-to do so, run `voiceprox on/off` to enable/disable voice proximity. Enter `voiceprox` to see if it's currently enabled. (Linux and mac are not currenly supported for 
+Setup for this server as opposed to the official server is very similar, no action needs to be taken unless/until you want to enable the voice proximity feature.
+Although the discord bot/token for the regular server (I believe) is optional, for voice proximity to function, it is *required*. You need to put your discord
+bot token in the server settings json, as the bot is what manages/creates/deletes voice lobbies for the clients to join. Once this set set up, you can enable voice proximity.
+To do so, run `voiceprox on/off` to enable/disable voice proximity. Enter `voiceprox` to see if it's currently enabled. (Linux and mac are not currenly supported for 
 release v1.0.0-alpha, but are planned to be supported soon).
 
 ### Client
