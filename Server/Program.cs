@@ -758,7 +758,7 @@ CommandHandler.RegisterCommand("maxplayers", args =>
 });
 
 CommandHandler.RegisterCommand("list",
-    _ => $"List: {string.Join("\n\t", server.Clients.Where(x => x.Connected).Select(x => $"{x.Name} ({x.Id})"))}");
+    _ => $"List: {string.Join("\n      ", server.Clients.Where(x => x.Connected).Select(x => $"{x.Name} ({x.Id})"))}");
 
 CommandHandler.RegisterCommand("flip", args =>
 {
