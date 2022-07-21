@@ -244,6 +244,11 @@ namespace ProxChatClientGUI
                     modelLogger.Info("Discord VC lobby closed because: " + reason);
                     onServerDisconnect?.Invoke();
                 };
+
+                lobbyManager.OnSpeaking += (long lobbyId, long userId, bool speaking) =>
+                {
+                    modelLogger.Info($"{idToUser[userId].Username}#{idToUser[userId].Discriminator} is {(speaking ? "speaking." : "not speaking.")}");
+                };
 #endregion
 
                 #region Loop
