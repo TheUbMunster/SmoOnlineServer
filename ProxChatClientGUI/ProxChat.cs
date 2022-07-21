@@ -332,10 +332,15 @@ namespace ProxChatClientGUI
                             }
                         }
                     };
+                    //System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
+                    //sw.Start();
                     System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
-                    sw.Start();
+                    const int frameTime = 50; //20fps
+                    int waitTime = 20;//how much time can be waited
                     while (true)
                     {
+                        Thread.Sleep(waitTime);
+                        sw.Restart();
                         lock (uiLock)
                         {
                             while (messageQueue.Count > 0)
@@ -347,9 +352,9 @@ namespace ProxChatClientGUI
                             }
                             KeyService.TickKeys();
                         }
-                        //TODO: fix busy wait
-                        while (sw.ElapsedMilliseconds < 16) { } //this busy wait allows some time for people to add more messages.
-                        sw.Restart();
+                        sw.Stop();
+                        waitTime = frameTime - (int)sw.ElapsedMilliseconds;
+                        waitTime = waitTime < 0 ? 0 : waitTime;
                     }
                 }
                 catch (Exception ex)
