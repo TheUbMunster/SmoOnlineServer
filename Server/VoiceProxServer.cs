@@ -395,7 +395,7 @@ namespace Server
                 StringBuilder mesg = new StringBuilder("OnClientDisconnect: " + discord);
                 discordUserCount--;
                 bool success = volCalc.RemoveIGDiscordAssocIfExists(discord);
-                if (success)
+                if (!success)
                     mesg.Append($", for some reason they weren't in the ig-discord association.");
                 pvcLogger.Info(mesg.ToString());
                 //igToDiscord.Remove(discordToIg[discord]);

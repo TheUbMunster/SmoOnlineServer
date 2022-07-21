@@ -1,6 +1,4 @@
-﻿#define CIRCULAR_UI_IMAGES //makes this so that images loaded in the UI are circular (like discord)
-
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Linq;
@@ -77,6 +75,7 @@ namespace ProxChatClientGUI
 
                 onImageRecieved += (id, width, height, data) =>
                 {
+                    byte[] highlighted = new byte[data.Length];
                     ProxChat.Instance.AddMessage(() =>
                     {
                         //rearrange pixel data
@@ -89,19 +88,33 @@ namespace ProxChatClientGUI
                                 byte g = data[i + 1];
                                 byte b = data[i + 2];
                                 byte a = data[i + 3];
-#if CIRCULAR_UI_IMAGES
+
                                 float xx = (((float)x / width) - 0.5f) * 2f;
                                 float yy = (((float)y / height) - 0.5f) * 2f;
-                                bool opaque = (xx * xx) + (yy * yy) < 1f;
-#else
-                                bool opaque = true;
-#endif
+                                float distSq = (xx * xx) + (yy * yy);
+                                bool opaque = distSq < 1f;
+                                bool greenBorder = distSq < 1f && distSq > (0.925f * 0.925f);
+
                                 if (opaque)
                                 {
                                     data[i] = b;
                                     data[i + 1] = g;
                                     data[i + 2] = r;
                                     data[i + 3] = a;
+                                    if (!greenBorder)
+                                    {
+                                        highlighted[i] = b;
+                                        highlighted[i + 1] = g;
+                                        highlighted[i + 2] = r;
+                                        highlighted[i + 3] = a;
+                                    }
+                                    else
+                                    {
+                                        highlighted[i] = 64;
+                                        highlighted[i + 1] = 255;
+                                        highlighted[i + 2] = 64;
+                                        highlighted[i + 3] = 255;
+                                    }
                                 }
                                 else
                                 {
@@ -110,7 +123,7 @@ namespace ProxChatClientGUI
                             }
                         }
                         //set the image
-                        ProxChat.Instance.SetUserImage(id, width, height, data);
+                        ProxChat.Instance.SetUserImage(id, width, height, data, highlighted);
                     });
                 };
 
@@ -247,9 +260,13 @@ namespace ProxChatClientGUI
 
                 lobbyManager.OnSpeaking += (long lobbyId, long userId, bool speaking) =>
                 {
-                    modelLogger.Info($"{idToUser[userId].Username}#{idToUser[userId].Discriminator} is {(speaking ? "speaking." : "not speaking.")}");
+                    //if (idToUser.ContainsKey(userId))
+                    //    modelLogger.Info($"{idToUser[userId].Username}#{idToUser[userId].Discriminator} is {(speaking ? "speaking." : "not speaking.")}");
+                    //else
+                    //    modelLogger.Info($"{userId} is {(speaking ? "speaking." : "not speaking.")}");
+                    ProxChat.Instance.SetUserTalkingHighlighted(userId, speaking);
                 };
-#endregion
+                #endregion
 
                 #region Loop
                 try

@@ -404,7 +404,6 @@ namespace ProxChatClientGUI
                         lm.SetDeafButtonCallback((deaf) => OnDeafChange(deaf));
                         lm.RemoveSelfUI();
                         SetIdentity(username, Settings.Instance.IngameName!);
-                        //SHUFFLE UP SELF
                     }
                     else
                     {
@@ -413,23 +412,22 @@ namespace ProxChatClientGUI
                     }
                     lm.SetPercievedVolumeVisible(Settings.Instance.PercievedVolumeSliderEnabled!.Value);
                     lm.Dock = DockStyle.Fill;
-                    userFlowLayoutPanel.SuspendLayout();
-                    userFlowLayoutPanel.Controls.Add(lm);
-                    userFlowLayoutPanel.ResumeLayout(true);
-                    userFlowLayoutPanel.Refresh();
-                    //if (clientIdToDisplayIndex.Count == 0)
-                    //{
-                    //    clientIdToDisplayIndex[userId] = 0;
-                    //    SetIdentity(username, Settings.Instance.IngameName!);
-                    //}
-                    //else
-                    //{
-                    //    userTablePanel.RowCount++;
-                    //    var rs = new RowStyle(userTablePanel.RowStyles[0].SizeType, userTablePanel.RowStyles[0].Height);
-                    //    userTablePanel.RowStyles.Add(rs);
-                    //    userTablePanel.Controls.Add(lm, 0, clientIdToDisplayIndex.Count);
-                    //    clientIdToDisplayIndex[userId] = clientIdToDisplayIndex.Count;
-                    //}
+                    //userFlowLayoutPanel.SuspendLayout();
+                    //userFlowLayoutPanel.Controls.Add(lm);
+                    //userFlowLayoutPanel.ResumeLayout(true);
+                    //userFlowLayoutPanel.Refresh();
+                    if (isSelf)
+                    {
+                        userTablePanel.Controls.Add(lm, 0, 0);
+                        SetIdentity(username, Settings.Instance.IngameName!);
+                    }
+                    else
+                    {
+                        var rs = new RowStyle(userTablePanel.RowStyles[0].SizeType, userTablePanel.RowStyles[0].Height);
+                        userTablePanel.RowStyles.Add(rs);
+                        userTablePanel.Controls.Add(lm, 0, userTablePanel.RowCount);
+                        userTablePanel.RowCount++;
+                    }
                 }
                 else
                 {
@@ -449,26 +447,25 @@ namespace ProxChatClientGUI
                 var lm = GetLobbyMemberUI(userId);
                 if (lm != null)
                 {
-                    userFlowLayoutPanel.Controls.Remove(lm);
+                    int row = userTablePanel.GetRow(lm);
+                    userTablePanel.Controls.Remove(lm);
                     lm.SetDeafButtonCallback(null);
                     lm.SetMuteButtonCallback(null);
                     lm.SetDirectButtonCallback(null);
                     lm.SetVolumeSliderCallback(null);
-                    lm.DisposeUserImage();
+                    lm.DisposeUserImages();
                     lm.Dispose();
                     isDirectHeldDown.Remove(userId);
-                    //if (clientIdToDisplayIndex.Count > 0)
-                    //{
-                    //    for (int i = row; i < clientIdToDisplayIndex.Count; i++)
-                    //    {
-                    //        long userIdOfEntryBelow = clientIdToDisplayIndex.First(x => x.Value == i + 1).Key;
-                    //        LobbyMember lmn = (LobbyMember)userTablePanel.GetControlFromPosition(0, i + 1);
-                    //        userTablePanel.Controls.Remove(lmn);
-                    //        OnPressDirectButton(userIdOfEntryBelow, false);
-                    //        userTablePanel.Controls.Add(lmn, 0, i);
-                    //    }
-                    //    userTablePanel.RowCount--;
-                    //}
+                    for (int i = row; i < userTablePanel.Controls.Count; i++)
+                    {
+                        //long userIdOfEntryBelow = clientIdToDisplayIndex.First(x => x.Value == i + 1).Key;
+                        LobbyMember lmn = (LobbyMember)userTablePanel.GetControlFromPosition(0, i + 1);
+                        userTablePanel.Controls.Remove(lmn);
+                        if (lmn.UserId != null)
+                            OnPressDirectButton(lmn.UserId.Value, false);
+                        userTablePanel.Controls.Add(lmn, 0, i);
+                    }
+                    userTablePanel.RowCount--;
                 }
             }
             catch (Exception ex)
@@ -477,19 +474,31 @@ namespace ProxChatClientGUI
             }
         }
 
-        public void SetUserImage(long userId, uint width, uint height, byte[] imageData)
+        public void SetUserImage(long userId, uint width, uint height, byte[] imageData, byte[] highlightedImageData)
         {
             try
             {
                 var lm = GetLobbyMemberUI(userId);
                 if (lm != null)
                 {
-                    Bitmap output = new Bitmap((int)width, (int)height, PixelFormat.Format32bppArgb);
-                    BitmapData bData = output.LockBits(new Rectangle(0, 0, (int)width, (int)height), ImageLockMode.WriteOnly, output.PixelFormat);
-                    IntPtr ptr = bData.Scan0;
-                    Marshal.Copy(imageData, 0, ptr, imageData.Length);
-                    output.UnlockBits(bData);
-                    lm.SetUserImage(output);
+                    Bitmap normal;
+                    {
+                        normal = new Bitmap((int)width, (int)height, PixelFormat.Format32bppArgb);
+                        BitmapData bData = normal.LockBits(new Rectangle(0, 0, (int)width, (int)height), ImageLockMode.WriteOnly, normal.PixelFormat);
+                        IntPtr ptr = bData.Scan0;
+                        Marshal.Copy(imageData, 0, ptr, imageData.Length);
+                        normal.UnlockBits(bData);
+                    }
+                    Bitmap high;
+                    {
+                        high = new Bitmap((int)width, (int)height, PixelFormat.Format32bppArgb);
+                        BitmapData bData = high.LockBits(new Rectangle(0, 0, (int)width, (int)height), ImageLockMode.WriteOnly, high.PixelFormat);
+                        IntPtr ptr = bData.Scan0;
+                        Marshal.Copy(highlightedImageData, 0, ptr, highlightedImageData.Length);
+                        high.UnlockBits(bData);
+                    }
+
+                    lm.SetUserImages(normal, high);
                 }
                 else
                 {
@@ -502,9 +511,29 @@ namespace ProxChatClientGUI
             }
         }
 
+        public void SetUserTalkingHighlighted(long userId, bool talking)
+        {
+            try
+            {
+                var lm = GetLobbyMemberUI(userId);
+                if (lm != null)
+                {
+                    lm.SetUserTalking(talking);
+                }
+                else
+                {
+                    viewLogger.Warn($"Can't set {userId} to be highlighted/unhighlighted because they aren't in the user table.");
+                }
+            }
+            catch (Exception ex)
+            {
+                viewLogger.Warn($"Tried to highlight/unhighlight {userId} from talking and something went wrong." + ex.ToString());
+            }
+        }
+
         public LobbyMember? GetLobbyMemberUI(long userId)
         {
-            return userFlowLayoutPanel.Controls.OfType<LobbyMember>().FirstOrDefault(x => x.UserId == userId);
+            return userTablePanel.Controls.OfType<LobbyMember>().FirstOrDefault(x => x.UserId == userId);
         }
 
         public void SetCDCButton(bool connect = true)
@@ -636,7 +665,7 @@ namespace ProxChatClientGUI
 
         public void SetPercievedVolumeVisible(bool visible)
         {
-            foreach (var lm in userFlowLayoutPanel.Controls.OfType<LobbyMember>())
+            foreach (var lm in userTablePanel.Controls.OfType<LobbyMember>())
             {
                 lm.SetPercievedVolumeVisible(visible);
             }

@@ -28,7 +28,11 @@ namespace Server
 
         private class UserVolInfo
         {
-            //public bool WalkieOverride { get; set; }
+            /// <summary>
+            /// Since the volume between users is (usually) the same e.g. player1 <-> player2 distance
+            /// is the same as the distance player2 <-> player1, this is a reference to the other volume object
+            /// </summary>
+            public UserVolInfo Pair { get; set; }
             public ulong Ticker { get; set; }
             /// <summary>
             /// The running calculated volume (if null, has not been calculated yet)

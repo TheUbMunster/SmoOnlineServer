@@ -25,6 +25,9 @@ namespace ProxChatClientGUI
         private Action<bool>? directCallback;
         private Action<byte>? volumeCallback;
 
+        private Image? normalUser;
+        private Image? highUser;
+
         private bool muted = false;
         public bool Muted
         {
@@ -108,22 +111,26 @@ namespace ProxChatClientGUI
 
         #region Sets
         #region UI
-        public void SetUserImage(Image? img)
+        public void SetUserTalking(bool talking)
         {
-            if (img != null)
-            {
-                userPicture.BackgroundImage = img;
-            }
+            if (talking)
+                userPicture.BackgroundImage = highUser;
             else
-            {
-                userPicture.BackgroundImage = null;
-            }
+                userPicture.BackgroundImage = normalUser;
         }
 
-        public void DisposeUserImage()
+        public void SetUserImages(Image? normal, Image? high)
         {
-            userPicture.BackgroundImage?.Dispose();
+            normalUser = normal;
+            highUser = high;
+            userPicture.BackgroundImage = normal;
+        }
+
+        public void DisposeUserImages()
+        {
             userPicture.BackgroundImage = null;
+            normalUser?.Dispose();
+            highUser?.Dispose();
         }
 
         public void SetUserInfo(string username, long userId)
