@@ -117,12 +117,18 @@ namespace Server
                     if (ig == igPlayer)
                         continue;
                     //ig <-> igPlayer
-                    UserVolInfo volInfo = null!;
+                    UserVolInfo volInfo1 = null!, volInfo2 = null!;
                     if (!igToIgsToVols.ContainsKey(ig))
                         igToIgsToVols[ig] = new Dictionary<string, UserVolInfo>();
                     if (!igToIgsToVols[ig].ContainsKey(igPlayer))
-                        volInfo = igToIgsToVols[igPlayer][ig] = igToIgsToVols[ig][igPlayer] = new UserVolInfo();
-                    volInfo ??= igToIgsToVols[igPlayer][ig];
+                    {
+                        volInfo1 = igToIgsToVols[igPlayer][ig] = new UserVolInfo();
+                        volInfo2 = igToIgsToVols[ig][igPlayer] = new UserVolInfo();
+                        volInfo1.Pair = volInfo2;
+                        volInfo2.Pair = volInfo1;
+                    }
+                    volInfo1 ??= igToIgsToVols[igPlayer][ig];
+                    volInfo2 ??= igToIgsToVols[ig][igPlayer];
 
                     //actual calculation
                     if (!igToStage.ContainsKey(ig))
@@ -154,13 +160,25 @@ namespace Server
                         //semi-linearize from 1/((dist^2)*log(dist))
                         setVol *= setVol; //may sound better without this.
                     }
-                    if (volInfo.LastSetVolume == null || Math.Abs(volInfo.LastSetVolume.Value - setVol) > soundEpsilon ||
-                        (volInfo.LastSetVolume != 0 && setVol == 0) || (volInfo.LastSetVolume != 1 && setVol == 1))
+                    if (volInfo1.LastSetVolume == null || Math.Abs(volInfo1.LastSetVolume.Value - setVol) > soundEpsilon ||
+                        (volInfo1.LastSetVolume != 0 && setVol == 0) || (volInfo1.LastSetVolume != 1 && setVol == 1))
                     {
-                        volInfo.RunningVolume = setVol;
+                        volInfo1.RunningVolume = setVol;
                         if (voiceProxEnabled)
-                            volInfo.ToSendVolume = setVol;
-                        volInfo.Ticker++;
+                        {
+                            volInfo1.ToSendVolume = setVol;
+                        }
+                        volInfo1.Ticker++;
+                    }
+                    if (volInfo2.LastSetVolume == null || Math.Abs(volInfo2.LastSetVolume.Value - setVol) > soundEpsilon ||
+                        (volInfo2.LastSetVolume != 0 && setVol == 0) || (volInfo2.LastSetVolume != 1 && setVol == 1))
+                    {
+                        volInfo2.RunningVolume = setVol;
+                        if (voiceProxEnabled)
+                        {
+                            volInfo2.ToSendVolume = setVol;
+                        }
+                        volInfo2.Ticker++;
                     }
                 }
             }
@@ -184,21 +202,33 @@ namespace Server
                     if (ig == igPlayer)
                         continue;
                     //ig <-> igPlayer
-                    UserVolInfo volInfo = null!;
+                    UserVolInfo volInfo1 = null!, volInfo2 = null!;
                     if (!igToIgsToVols.ContainsKey(ig))
                         igToIgsToVols[ig] = new Dictionary<string, UserVolInfo>();
                     if (!igToIgsToVols[ig].ContainsKey(igPlayer))
-                        volInfo = igToIgsToVols[igPlayer][ig] = igToIgsToVols[ig][igPlayer] = new UserVolInfo();
-                    volInfo ??= igToIgsToVols[igPlayer][ig];
+                    {
+                        UserVolInfo one = new UserVolInfo(), two = new UserVolInfo();
+                        volInfo1 = igToIgsToVols[igPlayer][ig] = one;
+                        volInfo2 = igToIgsToVols[ig][igPlayer] = two;
+                        volInfo1.Pair = volInfo2;
+                        volInfo2.Pair = volInfo1;
+                    }
+                    volInfo1 ??= igToIgsToVols[igPlayer][ig];
+                    volInfo2 ??= igToIgsToVols[ig][igPlayer];
 
                     //actual calculation
                     string? igStage = igToStage[ig];
-                    if ((igStage == null || stage == null || igStage != stage) && volInfo.LastSetVolume != 0)
+                    if ((igStage == null || stage == null || igStage != stage) && (volInfo1.LastSetVolume != 0 || volInfo2.LastSetVolume != 0))
                     {
-                        volInfo.RunningVolume = 0;
+                        volInfo1.RunningVolume = 0;
+                        volInfo2.RunningVolume = 0;
                         if (voiceProxEnabled)
-                            volInfo.ToSendVolume = 0;
-                        volInfo.Ticker++;
+                        {
+                            volInfo1.ToSendVolume = 0;
+                            volInfo2.ToSendVolume = 0;
+                        }
+                        volInfo1.Ticker++;
+                        volInfo2.Ticker++;
                     }
                 }
             }
@@ -423,8 +453,9 @@ namespace Server
                 {
                     foreach (string ig2 in igs)
                     {
-                        if (ig1 != ig2)
+                        if (ig1 != ig2 && igToIgsToVols[ig1].ContainsKey(ig2))
                         {
+                            //only first key was found, second dictionary was empty for some reason
                             igToIgsToVols[ig1][ig2].LastSetVolume = igToIgsToVols[ig1][ig2].ToSendVolume; //unless walkie override
                             igToIgsToVols[ig1][ig2].ToSendVolume = null;
                         }
@@ -455,7 +486,13 @@ namespace Server
                         if (!igToIgsToVols.ContainsKey(ig))
                             igToIgsToVols[ig] = new Dictionary<string, UserVolInfo>();
                         if (!igToIgsToVols[ig].ContainsKey(igPlayer))
-                            volInfo = igToIgsToVols[igPlayer][ig] = igToIgsToVols[ig][igPlayer] = new UserVolInfo();
+                        {
+                            UserVolInfo one = new UserVolInfo(), two = new UserVolInfo();
+                            volInfo = igToIgsToVols[igPlayer][ig] = one;
+                            igToIgsToVols[ig][igPlayer] = two;
+                            one.Pair = two;
+                            two.Pair = one;
+                        }
                         volInfo ??= igToIgsToVols[igPlayer][ig];
 
                         if (igToDiscord.ContainsKey(ig))
