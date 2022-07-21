@@ -128,7 +128,7 @@
             this.centerLayoutPanel.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 33.33333F));
             this.centerLayoutPanel.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 33.33333F));
             this.centerLayoutPanel.Size = new System.Drawing.Size(244, 94);
-            this.centerLayoutPanel.TabIndex = 7;
+            this.centerLayoutPanel.TabIndex = 0;
             // 
             // volumeSlider
             // 
@@ -156,11 +156,10 @@
             // 
             // volumePercieved
             // 
-            this.volumePercieved.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
-            | System.Windows.Forms.AnchorStyles.Right)));
+            this.volumePercieved.Dock = System.Windows.Forms.DockStyle.Fill;
             this.volumePercieved.Location = new System.Drawing.Point(3, 65);
             this.volumePercieved.Name = "volumePercieved";
-            this.volumePercieved.Size = new System.Drawing.Size(238, 22);
+            this.volumePercieved.Size = new System.Drawing.Size(238, 26);
             this.volumePercieved.Style = System.Windows.Forms.ProgressBarStyle.Continuous;
             this.volumePercieved.TabIndex = 5;
             this.volumePercieved.Value = 100;

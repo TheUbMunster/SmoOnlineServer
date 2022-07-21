@@ -399,6 +399,7 @@ namespace ProxChatClientGUI
                     lm.SetMuteButtonCallback((muted) => OnMuteChange(userId, muted));
                     lm.SetVolumeSliderCallback((byte vol) => OnChangeVolume(username, vol));
                     lm.SetUserInfo(username, userId);
+                    lm.TabIndex = 4 + userTablePanel.Controls.Count;
                     if (isSelf)
                     {
                         lm.SetDeafButtonCallback((deaf) => OnDeafChange(deaf));
@@ -460,6 +461,7 @@ namespace ProxChatClientGUI
                     {
                         //long userIdOfEntryBelow = clientIdToDisplayIndex.First(x => x.Value == i + 1).Key;
                         LobbyMember lmn = (LobbyMember)userTablePanel.GetControlFromPosition(0, i + 1);
+                        lmn.TabIndex--;
                         userTablePanel.Controls.Remove(lmn);
                         if (lmn.UserId != null)
                             OnPressDirectButton(lmn.UserId.Value, false);
