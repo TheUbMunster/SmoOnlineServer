@@ -2,10 +2,20 @@
 using DSharpPlus.Entities;
 using Microsoft.Extensions.Logging;
 using Shared;
+using System.Net.Http;
+using System.Net.Http.Headers;
+//using Discord;
 
 namespace Server;
 
 public class DiscordBot {
+    static DiscordBot()
+    {
+        Instance = new DiscordBot();
+    }
+
+    public static DiscordBot Instance { get; private set; }
+
     private DiscordClient? DiscordClient;
     private string? Token;
     private Settings.DiscordTable Config => Settings.Instance.Discord;
@@ -14,7 +24,21 @@ public class DiscordBot {
     private DiscordChannel? LogChannel;
     private bool Reconnecting;
 
-    public DiscordBot() {
+    //#region Discord voice stuff
+    //private Dictionary<string, long> discUserToId = new Dictionary<string, long>();
+    //private Dictionary<long, Discord.User> discUserTable = new Dictionary<long, Discord.User>();
+    private Queue<Action> messageQueue = new Queue<Action>();
+    //private Discord.Discord? pvcDiscord = null;
+    private HttpClient webClient = new HttpClient();
+    private Discord.Lobby? pvcLobby = null;
+    private object lobbyLock = new object();
+    //private Discord.LobbyManager? lobbyManager = null;
+    //private Discord.VoiceManager? voiceManager = null;
+    //private Discord.UserManager? userManager = null;
+    //private Discord.User? currentUser = null;
+    //#endregion
+
+    private DiscordBot() {
         Token = Config.Token;
         Logger.AddLogHandler(Log);
         CommandHandler.RegisterCommand("dscrestart", _ => {
@@ -23,13 +47,25 @@ public class DiscordBot {
             Task.Run(Reconnect);
             return "Restarting Discord bot";
         });
-        if (Config.Token == null) return;
-        Settings.LoadHandler += SettingsLoadHandler;
+        if (Config.Token == null)
+        {
+            Logger.Warn("No discord bot token is set in the server settings! You cannot use voice proximity until you assign a bot token!");
+            return;
+        }
+        webClient.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", "Bot " + Config.Token);
+        //I don't think this is necessary because access to the static member "Settings.Instance" will
+        //trigger a call to the static Settings constructor, which therefore will load the settings.
+        //That means if you access any setting via Settings.Instance."SomeSetting", it will automatically
+        //load the settings.
+        Settings.LoadHandler += SettingsLoadHandler; 
+
     }
 
     private async Task Reconnect() {
         if (DiscordClient != null) // usually null prop works, not here though...`
+        {
             await DiscordClient.DisconnectAsync();
+        }
         await Run();
     }
 
@@ -60,6 +96,118 @@ public class DiscordBot {
         }
     }
 
+    /// <summary>
+    /// Note: *Only* call this when quitting the program
+    /// </summary>
+    public void ClosePVCLobbyForQuit()
+    {
+        lock (lobbyLock)
+        {
+            if (pvcLobby != null)
+            {
+                try
+                {
+                    webClient.DeleteAsync($"https://discord.com/api/v10/lobbies/{pvcLobby.Value.Id}").Wait();
+                }
+                catch (Exception e)
+                {
+                    Logger.Warn("Attempted to close the discord lobby: " + e.ToString());
+                }
+            }
+        }
+    }
+
+    public async Task<bool> CloseThenOpenPVCLobby()
+    {
+        if (Config.Token == null)
+        {
+            Logger.Warn("An attempt was made to open the PVC lobby without the discord bot token set! You need to set the discord bot token to use voice proximity!");
+            return false;
+        }
+        bool success = false;
+        try
+        {
+            lock (lobbyLock)
+            {
+                if (pvcLobby != null)
+                {
+                    //fire and forget, if it fails it is garbage collected in 15s anyways
+                    webClient.DeleteAsync($"https://discord.com/api/v10/lobbies/{pvcLobby.Value.Id}");
+                }
+            }
+            var payload = new
+            {
+                application_id = Constants.clientId.ToString(),
+                type = ((int)Discord.LobbyType.Private).ToString(),
+                capacity = (Settings.Instance.Server.MaxPlayers + 1).ToString()
+            };
+            HttpContent content = new StringContent(Newtonsoft.Json.JsonConvert.SerializeObject(payload), System.Text.Encoding.UTF8, "application/json");
+            content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+            Logger.Info("Attempting to open PVC lobby");
+            var response = await webClient.PostAsync("https://discord.com/api/v10/lobbies", content);
+            string json = await response.Content.ReadAsStringAsync();
+            Newtonsoft.Json.Linq.JObject j = Newtonsoft.Json.Linq.JObject.Parse(json);
+            lock (lobbyLock)
+            {
+                pvcLobby = new Discord.Lobby()
+                {
+                    Capacity = uint.Parse(j["capacity"].ToString()),
+                    Id = long.Parse(j["id"].ToString()),
+                    Locked = bool.Parse(j["locked"].ToString()),
+                    OwnerId = long.Parse(j["owner_id"].ToString()),
+                    Type = (Discord.LobbyType)int.Parse(j["type"].ToString()),
+                    Secret = j["secret"].ToString()
+                };
+                Logger.Info("PVC lobby open.");
+            }
+            success = true;
+            //send lobby packets to connected vcp clients so they can join the voice lobby without manually entering in the info
+            //VoiceProxServer.Instance.SendAllLobbyPacket(new PVCLobbyPacket() { LobbyId = pvcLobby.Value.Id, Secret = pvcLobby.Value.Secret });
+        }
+        catch (Exception ex)
+        {
+            Logger.Error(ex.ToString());
+        }
+        return success;
+    }
+
+    public async Task<bool> ChangePVCLobbySize(int newSize)
+    {
+        bool success = false;
+        try
+        {
+            var payload = new
+            {
+                capacity = newSize
+            };
+            HttpContent content = new StringContent(Newtonsoft.Json.JsonConvert.SerializeObject(payload), System.Text.Encoding.UTF8, "application/json");
+            content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+            long id;
+            lock (lobbyLock)
+            {
+                id = pvcLobby!.Value.Id; //nullderef caught by catch, no need for if
+            }
+            var response = await webClient.PatchAsync($"https://discord.com/api/v10/lobbies/{id}", content);
+            success = true;
+        }
+        catch (Exception ex)
+        {
+            Logger.Error(ex.ToString());
+        }
+        return success;
+    }
+
+    public (long id, string secret)? GetLobbyInfo()
+    {
+        lock (lobbyLock)
+        {
+            if (pvcLobby != null)
+                return (pvcLobby.Value.Id, pvcLobby.Value.Secret);
+            else
+                return null;
+        }
+    }
+
     public async Task Run() {
         Token = Config.Token;
         DiscordClient?.Dispose();
@@ -73,7 +221,7 @@ public class DiscordBot {
                 Token = Config.Token,
                 MinimumLogLevel = LogLevel.None
             });
-            await DiscordClient.ConnectAsync(new DiscordActivity("Hide and Seek", ActivityType.Competing));
+            await DiscordClient.ConnectAsync(new DiscordActivity("Hide and Seek", DSharpPlus.Entities.ActivityType.Competing));
             SettingsLoadHandler();
             Logger.Info(
                 $"Discord bot logged in as {DiscordClient.CurrentUser.Username}#{DiscordClient.CurrentUser.Discriminator}");
@@ -114,5 +262,10 @@ public class DiscordBot {
             Logger.Error("Exception occurred in discord runner!");
             Logger.Error(e);
         }
+    }
+
+    ~DiscordBot()
+    {
+        webClient?.Dispose();
     }
 }

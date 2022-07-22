@@ -3,19 +3,44 @@
 namespace Shared;
 
 public class Logger {
+    private static object logLock = new object();
     public Logger(string name) {
         Name = name;
     }
 
     public string Name { get; set; }
 
-    public void Debug(string text) => Handler?.Invoke(Name, "Debug", text, ConsoleColor.White);
+    public void Info(string text) 
+    {
+        lock (logLock) 
+        {
+            Handler?.Invoke(Name, "Info", text, ConsoleColor.White); 
+        }
+    }
 
-    public void Info(string text) => Handler?.Invoke(Name, "Info ", text, ConsoleColor.Cyan);
+    public void Warn(string text) 
+    {
+        lock (logLock) 
+        {
+            Handler?.Invoke(Name, "Warn", text, ConsoleColor.Yellow);
+        }
+    }
+    
+    public void Debug(string text) 
+    {
+        lock (logLock) 
+        {
+            Handler?.Invoke(Name, "Debug", text, ConsoleColor.White);
+        }
+    }
 
-    public void Warn(string text) => Handler?.Invoke(Name, "Warn ", text, ConsoleColor.Yellow);
-
-    public void Error(string text) => Handler?.Invoke(Name, "Error", text, ConsoleColor.Red);
+    public void Error(string text) 
+    {
+        lock (logLock)
+        {
+            Handler?.Invoke(Name, "Error", text, ConsoleColor.Red);
+        }
+    }
 
     public void Error(Exception error) => Error(error.ToString());
 
@@ -32,7 +57,7 @@ public class Logger {
     public delegate void LogHandler(string source, string level, string text, ConsoleColor color);
 
     private static LogHandler? Handler;
-    public static void AddLogHandler(LogHandler handler) => Handler += handler;
+    public static void AddLogHandler(LogHandler handler) { lock (logLock) { Handler += handler; } }
 
     static Logger() {
         AddLogHandler((source, level, text, color) => {
