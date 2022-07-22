@@ -30,7 +30,7 @@ namespace ProxChatClientGUI
         private Dictionary<long, User> idToUser = new Dictionary<long, User>();
         private Dictionary<long, float> idToVolPercent = new Dictionary<long, float>(); //what % of user pref vol should users be set to with SetLocalVol
         private Dictionary<string, PVCMultiDataPacket.VolTick> nameToVolCache = new Dictionary<string, PVCMultiDataPacket.VolTick>();
-        //private ulong singleTicker = 0;
+        //private ulong singleTicker = 0; 
         //private string lastSingleUsername = null!;
         //private ulong multiTicker = 0;
         private Dictionary<long, ulong> idToTicker = new Dictionary<long, ulong>();
