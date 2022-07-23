@@ -53,6 +53,7 @@ namespace ProxChatClientGUI
         {
             InitializeComponent();
             //fill fields with values
+            appIdTextBox.Text = Settings.Instance.DiscordAppID.ToString();
             igUsernameTextBox.Text = Settings.Instance.IngameName!;
             serverPortTextBox.Text = Settings.Instance.ServerPort!.ToString();
             serverHostTextBox.Text = Settings.Instance.ServerHost!;
@@ -201,6 +202,15 @@ namespace ProxChatClientGUI
         private void confirmButton_Click(object sender, EventArgs e)
         {
             //check if everything's valid (restart if applicable)
+            bool needToClose = false;
+            if (long.TryParse(appIdTextBox.Text, out long appId))
+            {
+                if (Settings.Instance.DiscordAppID.HasValue && Settings.Instance.DiscordAppID.Value != appId)
+                {
+                    Settings.Instance.DiscordAppID = appId;
+                    needToClose = true;
+                }
+            }
             bool needToCloseIfRunning = false;
             if (igUsernameTextBox.Text != Settings.Instance.IngameName)
             {
@@ -244,7 +254,7 @@ namespace ProxChatClientGUI
                 ProxChat.Instance.SetPercievedVolumeVisible(Settings.Instance.PercievedVolumeSliderEnabled!.Value);
             }
             Settings.SaveSettings();
-            if (needToCloseIfRunning && serverWasRunningUponOpening)
+            if (needToCloseIfRunning && serverWasRunningUponOpening || needToClose)
             {
                 Application.Restart();
                 Environment.Exit(0); //there isn't a better way to do this other than to: start up another app

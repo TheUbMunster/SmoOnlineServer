@@ -27,14 +27,14 @@
   </ItemGroup>
 
   <ItemGroup>
-  	<ContentWithTargetPath Include="libs\discord_game_sdk.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-	  <TargetPath>discord_game_sdk.dll</TargetPath>
-  	</ContentWithTargetPath>
-	<None Include="libs\discord_game_sdk.dll" />
+    <ContentWithTargetPath Include="libs\discord_game_sdk.dll">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        <TargetPath>discord_game_sdk.dll</TargetPath>
+    </ContentWithTargetPath>
+    <None Include="libs\discord_game_sdk.dll"/>
   </ItemGroup>
 
-  <ItemGroup>
+	<ItemGroup>
     <Compile Update="Properties\Resources.Designer.cs">
       <DesignTime>True</DesignTime>
       <AutoGen>True</AutoGen>
