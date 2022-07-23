@@ -72,6 +72,7 @@ public class Settings {
 
     public class DiscordTable {
         public string? Token { get; set; }
+        public long? AppID { get; set; }
         public string Prefix { get; set; } = "$";
         public string? LogChannel { get; set; }
         public ushort PVCPort { get; set; } = 12000;

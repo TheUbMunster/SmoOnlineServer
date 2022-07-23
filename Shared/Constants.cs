@@ -41,7 +41,4 @@ public static partial class Constants {
         {"dark", "Special1WorldHomeStage"},
         {"darker", "Special2WorldHomeStage"}
     };
-
-    //for use by proximity chat (this is safe to be on github, any bots made use this as their id so it's already public info).
-    public const long clientId = 994484034539376710;
 }

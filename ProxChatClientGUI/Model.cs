@@ -170,7 +170,7 @@ namespace ProxChatClientGUI
 
                 #region Setup
                 Library.Initialize();
-                discord = new Discord.Discord(Constants.clientId, (UInt64)Discord.CreateFlags.Default);
+                discord = new Discord.Discord(Settings.Instance.DiscordAppID!.Value, (UInt64)Discord.CreateFlags.Default);
                 lobbyManager = discord.GetLobbyManager();
                 voiceManager = discord.GetVoiceManager();
                 imageManager = discord.GetImageManager();

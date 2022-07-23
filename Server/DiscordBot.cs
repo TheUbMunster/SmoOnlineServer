@@ -137,7 +137,7 @@ public class DiscordBot {
             }
             var payload = new
             {
-                application_id = Constants.clientId.ToString(),
+                application_id = Settings.Instance.Discord.AppID.ToString(),
                 type = ((int)Discord.LobbyType.Private).ToString(),
                 capacity = (Settings.Instance.Server.MaxPlayers + 1).ToString()
             };
@@ -149,6 +149,7 @@ public class DiscordBot {
             Newtonsoft.Json.Linq.JObject j = Newtonsoft.Json.Linq.JObject.Parse(json);
             lock (lobbyLock)
             {
+                //j can be a rate limit response, check for that case
                 pvcLobby = new Discord.Lobby()
                 {
                     Capacity = uint.Parse(j["capacity"].ToString()),

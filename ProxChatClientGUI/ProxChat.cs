@@ -146,6 +146,29 @@ namespace ProxChatClientGUI
             Instance = this;
 
             #region Critical Settings
+            if (Settings.Instance.DiscordAppID == null)
+            {
+                DialogResult? res = null;
+                while (res != DialogResult.OK)
+                {
+                    TextPopup popup = new TextPopup()
+                    {
+                        InfoText = $"Enter the discord Application ID{(res == null ? "" : "(This is required)")}:",
+                        LabelText = "Enter the discord App ID"
+                    };
+                    res = popup.ShowDialog(this);
+                    if (res == DialogResult.OK && long.TryParse(popup.InfoResult, out long did))
+                    {
+                        Settings.Instance.DiscordAppID = did;
+                        Settings.SaveSettings();
+                    }
+                    else if (res == DialogResult.Abort)
+                    {
+                        Load += (_, _) => Close();
+                        return;
+                    }
+                }
+            }
             if (Settings.Instance.ServerHost == null)
             {
                 DialogResult? res = null;
