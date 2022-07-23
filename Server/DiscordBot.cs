@@ -137,7 +137,7 @@ public class DiscordBot {
             }
             var payload = new
             {
-                application_id = Constants.clientId.ToString(),
+                application_id = Settings.Instance.Discord.AppID.ToString(),
                 type = ((int)Discord.LobbyType.Private).ToString(),
                 capacity = (Settings.Instance.Server.MaxPlayers + 1).ToString()
             };
