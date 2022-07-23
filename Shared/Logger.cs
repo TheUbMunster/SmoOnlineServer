@@ -25,6 +25,14 @@ public class Logger {
             Handler?.Invoke(Name, "Warn", text, ConsoleColor.Yellow);
         }
     }
+    
+    public void Debug(string text) 
+    {
+        lock (logLock) 
+        {
+            Handler?.Invoke(Name, "Debug", text, ConsoleColor.White);
+        }
+    }
 
     public void Error(string text) 
     {
