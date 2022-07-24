@@ -1,4 +1,6 @@
-﻿using System;
+﻿#define MEGA_VERBOSE
+
+using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Linq;
@@ -32,7 +34,7 @@ namespace Server
             /// Since the volume between users is (usually) the same e.g. player1 <-> player2 distance
             /// is the same as the distance player2 <-> player1, this is a reference to the other volume object
             /// </summary>
-            public UserVolInfo Pair { get; set; }
+            public UserVolInfo Pair { get; set; } = null!;
             public ulong Ticker { get; set; }
             /// <summary>
             /// The running calculated volume (if null, has not been calculated yet)
@@ -82,6 +84,9 @@ namespace Server
         {
             lock (lockKey)
             {
+#if DEBUG
+                Console.WriteLine($"IG-Discord assoc set: {igPlayer}, {discord}.");
+#endif
                 igToDiscord[igPlayer] = discord;
                 discordToIg[discord] = igPlayer;
             }
@@ -94,6 +99,9 @@ namespace Server
                 if (discordToIg.ContainsKey(discord))
                 {
                     string ig = discordToIg[discord];
+#if DEBUG
+                    Console.WriteLine($"IG-Discord assoc removed: {ig}, {discord}.");
+#endif
                     return (igToDiscord.Remove(ig) && discordToIg.Remove(discord));
                 }
                 return false;
@@ -104,6 +112,9 @@ namespace Server
         {
             lock (lockKey)
             {
+#if DEBUG && MEGA_VERBOSE
+                Console.WriteLine($"Recieved positional data of {igPlayer}.");
+#endif
                 igToPos[igPlayer] = pos;
                 if (!igToStage.ContainsKey(igPlayer))
                     igToStage[igPlayer] = null;
@@ -188,6 +199,9 @@ namespace Server
         {
             lock (lockKey)
             {
+#if DEBUG
+                Console.WriteLine($"Recieved stage data of {igPlayer}.");
+#endif
                 igToStage[igPlayer] = stage;
                 igs.Add(igPlayer);
                 if (!igToIgsToVols.ContainsKey(igPlayer))
@@ -238,6 +252,9 @@ namespace Server
         {
             lock (lockKey)
             {
+#if DEBUG
+                Console.WriteLine($"Recieved team data of {igPlayer}.");
+#endif
                 igToTeam[igPlayer] = team;
                 igs.Add(igPlayer);
                 if (!igToIgsToVols.ContainsKey(igPlayer))
@@ -264,6 +281,9 @@ namespace Server
         {
             lock (lockKey)
             {
+#if DEBUG && MEGA_VERBOSE
+                Console.WriteLine($"Recieved walkie talkie from {packet.DiscordSource}, type: {packet.GetWalkieMode()}");
+#endif
                 if (!voiceProxEnabled || !discordToIg.ContainsKey(packet.DiscordSource))
                     return; //no point of walkie-talkie when voiceprox is off, or if that discord user isn't recognized
                 switch (packet.GetWalkieMode())
@@ -461,6 +481,9 @@ namespace Server
                         }
                     }
                 }
+#if DEBUG && MEGA_VERBOSE
+                Console.WriteLine($"Sending new volume data to: {string.Join(", ", result.Select(x => x.discordRecipient))}");
+#endif
                 return result;
             }
         }
@@ -506,6 +529,9 @@ namespace Server
                         }
                         //else that discord user isn't connected, shouldn't include their volume
                     }
+#if DEBUG
+                    Console.WriteLine($"Sending zeroed volume data to {discord}, for the users: {string.Join(", ", packet.Volumes.Select(x => x.Value))}");
+#endif
                     return packet;
                 }
                 else return null;

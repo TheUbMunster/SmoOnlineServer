@@ -359,6 +359,7 @@ namespace Server
                 volCalc.SetIGDiscordAssoc(ingame, discord);
                 if (discordUserCount == 1 && before == 0)
                 {
+                    pvcLogger.Info("Was no lobby, first user joined, now attempting to CloseThenOpenPVCLobby.");
                     //igToPos.Clear();
                     //igToStage.Clear();
                     //igToIgsToDirtyVols.Clear();
@@ -521,6 +522,7 @@ namespace Server
 
         private void HandleRecieveEvent(ref Event netEvent)
         {
+            Console.WriteLine("Recieved something");
             //if (!discordToPeer.Values.Contains(netEvent.Peer))
             {
                 PVCPacket? packet = Protocol.Deserialize<PVCPacket>(netEvent.Packet.Data, netEvent.Packet.Length);
@@ -709,6 +711,7 @@ namespace Server
 
         private void SendPacket<T>(T packet, Peer recipient) where T : PVCPacket
         {
+            Console.WriteLine("Sent info");
             byte[] data = Protocol.Serialize(packet);
             Packet pack = default(Packet); //ENet will dispose automatically when sending.
             pack.Create(data, PacketFlags.Reliable);
