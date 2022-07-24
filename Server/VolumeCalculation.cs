@@ -482,7 +482,8 @@ namespace Server
                     }
                 }
 #if DEBUG && MEGA_VERBOSE
-                Console.WriteLine($"Sending new volume data to: {string.Join(", ", result.Select(x => x.discordRecipient))}");
+                if (result.Count > 0)
+                    Console.WriteLine($"Sending new volume data to: {string.Join(", ", result.Select(x => x.discordRecipient))}");
 #endif
                 return result;
             }
@@ -530,7 +531,8 @@ namespace Server
                         //else that discord user isn't connected, shouldn't include their volume
                     }
 #if DEBUG
-                    Console.WriteLine($"Sending zeroed volume data to {discord}, for the users: {string.Join(", ", packet.Volumes.Select(x => x.Value))}");
+                    if (packet.Volumes.Count > 0)
+                        Console.WriteLine($"Sending zeroed volume data to {discord}, for the users: {string.Join(", ", packet.Volumes.Select(x => x.Value))}");
 #endif
                     return packet;
                 }
