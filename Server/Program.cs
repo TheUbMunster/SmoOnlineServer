@@ -230,6 +230,8 @@ CommandHandler.RegisterCommandAliases(args =>
         string helpInfo = @"
 dscrestart - restarts the discord bot (this has nothing to do with voice proximity, but a bot token does have to be in the server settings to use voice proximity)
 
+appid - prints the AppID from settings (voice proximity clients need this to connect).
+
 pvcip - prints the IP address that voice proximity clients should use to connect to the server
 
 getlobbysecret, gls - prints the lobby secret (If clients are prompted to enter this in their clients, that's because setautosendsecret is off)

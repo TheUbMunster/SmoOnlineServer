@@ -464,7 +464,8 @@ namespace Server
                             }
                             //else that discord user isn't connected, shouldn't include their volume
                         }
-                        result.Add((igToDiscord[ig], packet));
+                        if (packet.Volumes.Count > 0) // don't add if no volume data.
+                            result.Add((igToDiscord[ig], packet));
                     }
                     //else that discord user isn't connected, can't send a packet to them.
                 }

@@ -417,7 +417,7 @@ namespace Server
                 if (checkResult == 0)
                 {
                     //no events.
-                    server.Service(waitTime, out netEvent);
+                    server.Service(waitTime, out netEvent); //instead of 1 per loop, call repeatedly with 0 as arg until it returns eventtype none then wait the remainder?
                 }
                 else if (checkResult < 0)
                 {

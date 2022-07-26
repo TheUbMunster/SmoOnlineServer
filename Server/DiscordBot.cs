@@ -147,21 +147,30 @@ public class DiscordBot {
             var response = await webClient.PostAsync("https://discord.com/api/v10/lobbies", content);
             string json = await response.Content.ReadAsStringAsync();
             Newtonsoft.Json.Linq.JObject j = Newtonsoft.Json.Linq.JObject.Parse(json);
-            lock (lobbyLock)
+            if (j.ContainsKey("retry_after"))
             {
-                //j can be a rate limit response, check for that case
-                pvcLobby = new Discord.Lobby()
-                {
-                    Capacity = uint.Parse(j["capacity"].ToString()),
-                    Id = long.Parse(j["id"].ToString()),
-                    Locked = bool.Parse(j["locked"].ToString()),
-                    OwnerId = long.Parse(j["owner_id"].ToString()),
-                    Type = (Discord.LobbyType)int.Parse(j["type"].ToString()),
-                    Secret = j["secret"].ToString()
-                };
-                Logger.Info("PVC lobby open.");
+                //TODO: try open lobby after defer.
+                float time = float.Parse(j["retry_after"].ToString());
+                success = false;
             }
-            success = true;
+            else
+            {
+                lock (lobbyLock)
+                {
+                    //j can be a rate limit response, check for that case
+                    pvcLobby = new Discord.Lobby()
+                    {
+                        Capacity = uint.Parse(j["capacity"].ToString()),
+                        Id = long.Parse(j["id"].ToString()),
+                        Locked = bool.Parse(j["locked"].ToString()),
+                        OwnerId = long.Parse(j["owner_id"].ToString()),
+                        Type = (Discord.LobbyType)int.Parse(j["type"].ToString()),
+                        Secret = j["secret"].ToString()
+                    };
+                    Logger.Info("PVC lobby open.");
+                }
+                success = true;
+            }
             //send lobby packets to connected vcp clients so they can join the voice lobby without manually entering in the info
             //VoiceProxServer.Instance.SendAllLobbyPacket(new PVCLobbyPacket() { LobbyId = pvcLobby.Value.Id, Secret = pvcLobby.Value.Secret });
         }
