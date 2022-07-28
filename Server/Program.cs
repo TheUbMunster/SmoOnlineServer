@@ -18,6 +18,7 @@ HashSet<int> shineBag = new HashSet<int>();
 
 CancellationTokenSource cts = new CancellationTokenSource();
 Task listenTask = server.Listen(cts.Token);
+bool restartRequested = false;
 Logger consoleLogger = new Logger("Console");
 await DiscordBot.Instance.Run();
 {
@@ -791,6 +792,21 @@ CommandHandler.RegisterCommand("shine", args =>
     }
 });
 
+CommandHandler.RegisterCommand("restartserver", args =>
+{
+    if (args.Length != 0)
+    {
+        return "Usage: restartserver (no arguments)";
+    }
+    else
+    {
+        consoleLogger.Info("Received restartserver command");
+        restartRequested = true;
+        cts.Cancel();
+        return "restarting...";
+    }
+});
+
 CommandHandler.RegisterCommand("loadsettings", _ =>
 {
     Settings.LoadSettings();
@@ -840,3 +856,16 @@ Task.Run(() =>
 #endregion
 
 await listenTask;
+
+if (restartRequested) //need to do this here because this needs to happen after the listener closes, and there isn't an
+                      //easy way to sync in the restartserver command without it exiting Main()
+{
+    string? path = System.Reflection.Assembly.GetEntryAssembly()?.GetName().Name;
+    const string unableToStartMsg = "Unable to ascertain the executable location, you'll need to re-run the server manually.";
+    if (path != null) //path is probably just "Server", but in the context of the assembly, that's all you need to restart it.
+    {
+        Console.WriteLine($"Running (pid): {System.Diagnostics.Process.Start(path)?.Id.ToString() ?? unableToStartMsg}");
+    }
+    else
+        consoleLogger.Info(unableToStartMsg);
+}
