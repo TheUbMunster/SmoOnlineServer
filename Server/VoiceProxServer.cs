@@ -319,31 +319,31 @@ namespace Server
             Library.Initialize();
             server = new Host();
             Address adr = new Address() { Port = Settings.Instance.Discord.PVCPort };
-            IPHostEntry entry = Dns.GetHostEntry(adr.GetHost());
-            if (entry.AddressList.Length > 0)
-            {
-                for (int i = 0; i < entry.AddressList.Length; i++)
-                {
-                    if (entry.AddressList[i].AddressFamily == AddressFamily.InterNetwork)
-                    {
-                        ip = entry.AddressList[i].ToString();
-                        break;
-                    }
-                    else if (entry.AddressList[i].IsIPv4MappedToIPv6)
-                    {
-                        ip = entry.AddressList[i].MapToIPv4().ToString();
-                        break;
-                    }
-                }
-                if (ip == null)
-                {
-                    pvcLogger.Error("DNS could not resolve this programs IP.");
-                }
-            }
-            else
-            {
-                pvcLogger.Error("DNS could not resolve this programs IP.");
-            }
+            //IPHostEntry entry = Dns.GetHostEntry(adr);
+            //if (entry.AddressList.Length > 0)
+            //{
+            //    for (int i = 0; i < entry.AddressList.Length; i++)
+            //    {
+            //        if (entry.AddressList[i].AddressFamily == AddressFamily.InterNetwork)
+            //        {
+            //            ip = entry.AddressList[i].ToString();
+            //            break;
+            //        }
+            //        else if (entry.AddressList[i].IsIPv4MappedToIPv6)
+            //        {
+            //            ip = entry.AddressList[i].MapToIPv4().ToString();
+            //            break;
+            //        }
+            //    }
+            //    if (ip == null)
+            //    {
+            //        pvcLogger.Error("DNS could not resolve this programs IP.");
+            //    }
+            //}
+            //else
+            //{
+            //    pvcLogger.Error("DNS could not resolve this programs IP.");
+            //}
             server.Create(adr, 16); //discord voice cannot support more than 16 people per lobby.
             OnClientConnect += (string discord, string ingame) =>
             {
