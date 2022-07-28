@@ -110,7 +110,7 @@ namespace ProxChatClientGUI
                                     }
                                     else
                                     {
-                                        highlighted[i] = 64;
+                                        highlighted[i] = 96;
                                         highlighted[i + 1] = 255;
                                         highlighted[i + 2] = 64;
                                         highlighted[i + 3] = 255;
@@ -193,7 +193,7 @@ namespace ProxChatClientGUI
                     discord.RunCallbacks();
                 }
                 userManager.OnCurrentUserUpdate -= upd; //if the user changes nick in the middle of a game it will mess things up.
-#endregion
+                #endregion
 
                 #region Self Event Subscription
                 lobbyManager.OnMemberConnect += (long lobbyId, long userId) =>
@@ -210,7 +210,7 @@ namespace ProxChatClientGUI
                         idToUser[userId] = user;
                         string userName = user.Username + "#" + user.Discriminator;
                         nameToId[userName] = user.Id;
-                        if (nameToVolCache.ContainsKey(userName))
+                        if (nameToVolCache.ContainsKey(userName)) //TODO: is this necessary when line 231 is just gonna set it to something else?
                         {
                             modelLogger.Info($"Applying cached vol info of {nameToVolCache[userName]} for {userName}.");
                             float percentVol = nameToVolCache[userName].Volume ?? 1f;
@@ -245,11 +245,17 @@ namespace ProxChatClientGUI
 
                 lobbyManager.OnMemberDisconnect += (long lobbyId, long userId) =>
                 {
-                    //idToUser keynotfoundexception
-                    string userName = idToUser[userId].Username + "#" + idToUser[userId].Discriminator;
-                    nameToId.Remove(userName);
-                    idToUser.Remove(userId);
-                    modelLogger.Info(userName + " left the lobby.");
+                    if (idToUser.ContainsKey(userId)) //idToUser keynotfoundexception sometimes (check before using
+                    {
+                        string userName = idToUser[userId].Username + "#" + idToUser[userId].Discriminator;
+                        nameToId.Remove(userName);
+                        modelLogger.Info(userName + " left the lobby.");
+                        idToUser.Remove(userId);
+                    }
+                    else
+                    {
+                        modelLogger.Info(userId + " left the lobby (They weren't in the model's usertable, unknown username)");
+                    }
                     onUserDisconnect?.Invoke(userId);
                 };
 
@@ -419,7 +425,6 @@ namespace ProxChatClientGUI
                         break;
                     case PVCMultiDataPacket multiPacket:
                         {
-                            //FIX TODO: race condition nameToId might not have the entry yet.
                             AddMessage(() =>
                             {
                                 foreach (var kvp in multiPacket.Volumes)

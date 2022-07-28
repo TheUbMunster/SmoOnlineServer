@@ -232,7 +232,7 @@ dscrestart - restarts the discord bot (this has nothing to do with voice proximi
 
 appid - prints the AppID from settings (voice proximity clients need this to connect).
 
-pvcip - prints the IP address that voice proximity clients should use to connect to the server
+ip - prints the IP address that voice proximity clients/game clients should use to connect to the server
 
 getlobbysecret, gls - prints the lobby secret (If clients are prompted to enter this in their clients, that's because setautosendsecret is off)
 
@@ -241,6 +241,12 @@ setautosendsecret, sass <on|off> - enables/disables the automatic sending of the
 voiceproxdistances, vpxd <optional (both or neither): beginheardist, fullheardist> - prints or sets the hearing distances for voice proximity
 
 voiceprox <optional: on|off> - prints the current state or enables/disables voice proximity
+
+listdiscordassocs - prints all of the discord/ingame associations that the VolumeCalculation is aware of
+
+listigteams - prints off all the ingame/team associations as far as the VolumeCalculation is aware of
+
+listigstage - prints off all the ingame/stage associations as far as the VolumeCalculation is aware of
 
 rejoin <usernames...> - forces listed connected (game) clients to leave and rejoin
 
@@ -293,9 +299,9 @@ CommandHandler.RegisterCommandAliases(args =>
     }
     else
     {
-        return VoiceProxServer.Instance.GetServerIP() ?? "(The server does not appear to be running.)";
+        return VoiceProxServer.Instance.GetServerIP() ?? "(The server does not appear to be running, or the IP couldn't be determined.)";
     }
-}, "pvcip");
+}, "ip");
 
 CommandHandler.RegisterCommandAliases(args =>
 {

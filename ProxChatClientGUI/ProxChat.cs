@@ -256,7 +256,10 @@ namespace ProxChatClientGUI
                                 if (mainUserId != null)
                                 {
                                     var lm = GetLobbyMemberUI(mainUserId!.Value);
-                                    lm.Muted = !lm.Muted;
+                                    if (lm != null)
+                                        lm.Muted = !lm.Muted;
+                                    else
+                                        viewLogger.Warn("Attempted to toggle the mute of the main user, but that user doesn't exist in the UI!");
                                 }
                                 else
                                 {

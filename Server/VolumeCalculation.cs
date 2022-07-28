@@ -77,7 +77,40 @@ namespace Server
 
         private bool voiceProxEnabled = false;
 
-        public VolumeCalculation() { }
+        public VolumeCalculation() 
+        {
+            CommandHandler.RegisterCommand("listdiscordassocs", args =>
+            {
+                if (args.Length != 0)
+                {
+                    return "Usage: listdiscordassocs (no arguments.)";
+                }
+                StringBuilder sb = new StringBuilder();
+                sb.Append("igToDiscord:\n");
+                sb.Append(string.Join("\n", igToDiscord.Select(x => $"\tIG: {x.Key}, Disc: {x.Value}")));
+                sb.Append("\ndiscordToIg\n");
+                sb.Append(string.Join("\n", discordToIg.Select(x => $"\tDisc: {x.Key}, IG: {x.Value}")));
+                return sb.ToString();
+            });
+
+            CommandHandler.RegisterCommand("listigteams", args =>
+            {
+                if (args.Length != 0)
+                {
+                    return "Usage: listigteams (no arguments.)";
+                }
+                return string.Join("\n", igToTeam.Select(x => $"\tIG: {x.Key}, Team:{x.Value}"));
+            });
+
+            CommandHandler.RegisterCommand("listigstage", args =>
+            {
+                if (args.Length != 0)
+                {
+                    return "Usage: listigstage (no arguments.)";
+                }
+                return string.Join("\n", igToStage.Select(x => $"\tIG: {x.Key}, Stage:{x.Value}"));
+            });
+        }
 
         #region Data input
         public void SetIGDiscordAssoc(string igPlayer, string discord)
@@ -87,8 +120,29 @@ namespace Server
 #if DEBUG
                 Console.WriteLine($"IG-Discord assoc set: {igPlayer}, {discord}.");
 #endif
-                igToDiscord[igPlayer] = discord;
-                discordToIg[discord] = igPlayer;
+                //if either igToDiscord or discordToIg has the key formerly, remove them both and reset them
+                //if resetting, remove entries from igs.
+                if (!igToDiscord.ContainsKey(igPlayer) && !discordToIg.ContainsKey(discord))
+                {
+                    igToDiscord[igPlayer] = discord;
+                    discordToIg[discord] = igPlayer;
+                }
+                else
+                {
+                    volCalcLogger.Warn("SetIGDiscordAssoc where igPlayer or discord were already set in the table.");
+                    if (igToDiscord.ContainsKey(igPlayer))
+                    {
+                        //associate an existing ig player with a different discord.
+                        volCalcLogger.Warn("TODO: associate an existing ig player with a different discord.");
+                    }
+                    if (discordToIg.ContainsKey(discord))
+                    {
+                        //associate an existing discord with a different ig.
+                        volCalcLogger.Warn("TODO: associate an existing discord with a different ig.");
+                    }
+                    igToDiscord[igPlayer] = discord;
+                    discordToIg[discord] = igPlayer;
+                }
             }
         }
 
@@ -171,20 +225,20 @@ namespace Server
                         //semi-linearize from 1/((dist^2)*log(dist))
                         setVol *= setVol; //may sound better without this.
                     }
+                    volInfo1.RunningVolume = setVol;
                     if (volInfo1.LastSetVolume == null || Math.Abs(volInfo1.LastSetVolume.Value - setVol) > soundEpsilon ||
                         (volInfo1.LastSetVolume != 0 && setVol == 0) || (volInfo1.LastSetVolume != 1 && setVol == 1))
                     {
-                        volInfo1.RunningVolume = setVol;
                         if (voiceProxEnabled)
                         {
                             volInfo1.ToSendVolume = setVol;
                         }
                         volInfo1.Ticker++;
                     }
+                    volInfo2.RunningVolume = setVol;
                     if (volInfo2.LastSetVolume == null || Math.Abs(volInfo2.LastSetVolume.Value - setVol) > soundEpsilon ||
                         (volInfo2.LastSetVolume != 0 && setVol == 0) || (volInfo2.LastSetVolume != 1 && setVol == 1))
                     {
-                        volInfo2.RunningVolume = setVol;
                         if (voiceProxEnabled)
                         {
                             volInfo2.ToSendVolume = setVol;
@@ -232,7 +286,7 @@ namespace Server
 
                     //actual calculation
                     string? igStage = igToStage[ig];
-                    if ((igStage == null || stage == null || igStage != stage) && (volInfo1.LastSetVolume != 0 || volInfo2.LastSetVolume != 0))
+                    if ((igStage == null || stage == null || igStage != stage) && (volInfo1.LastSetVolume != 0 || volInfo2.LastSetVolume != 0)) //TODO: split into two
                     {
                         volInfo1.RunningVolume = 0;
                         volInfo2.RunningVolume = 0;
@@ -404,7 +458,7 @@ namespace Server
                                     foreach (string ig in igs)
                                     {
                                         if (ig != igsrc && igToTeam.ContainsKey(ig) && igToTeam.ContainsKey(igsrc)
-                                            && igToTeam[ig] == igToTeam[igsrc])
+                                            && igToTeam[ig] == igToTeam[igsrc] && (igToTeam[ig] != Team.None))
                                         {
                                             igToIgsToVols[ig][igsrc].ToSendVolume = 1f;
                                             igToIgsToVols[ig][igsrc].Ticker++;
