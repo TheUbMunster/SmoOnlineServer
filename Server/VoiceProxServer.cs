@@ -319,31 +319,38 @@ namespace Server
             Library.Initialize();
             server = new Host();
             Address adr = new Address() { Port = Settings.Instance.Discord.PVCPort };
-            //IPHostEntry entry = Dns.GetHostEntry(adr);
-            //if (entry.AddressList.Length > 0)
-            //{
-            //    for (int i = 0; i < entry.AddressList.Length; i++)
-            //    {
-            //        if (entry.AddressList[i].AddressFamily == AddressFamily.InterNetwork)
-            //        {
-            //            ip = entry.AddressList[i].ToString();
-            //            break;
-            //        }
-            //        else if (entry.AddressList[i].IsIPv4MappedToIPv6)
-            //        {
-            //            ip = entry.AddressList[i].MapToIPv4().ToString();
-            //            break;
-            //        }
-            //    }
-            //    if (ip == null)
-            //    {
-            //        pvcLogger.Error("DNS could not resolve this programs IP.");
-            //    }
-            //}
-            //else
-            //{
-            //    pvcLogger.Error("DNS could not resolve this programs IP.");
-            //}
+            try
+            {
+                IPHostEntry entry = Dns.GetHostEntry("");
+                if (entry.AddressList.Length > 0)
+                {
+                    for (int i = 0; i < entry.AddressList.Length; i++)
+                    {
+                        if (entry.AddressList[i].AddressFamily == AddressFamily.InterNetwork)
+                        {
+                            ip = entry.AddressList[i].ToString();
+                            break;
+                        }
+                        else if (entry.AddressList[i].IsIPv4MappedToIPv6)
+                        {
+                            ip = entry.AddressList[i].MapToIPv4().ToString();
+                            break;
+                        }
+                    }
+                    if (ip == null)
+                    {
+                        pvcLogger.Error("DNS could not resolve this programs IP.");
+                    }
+                }
+                else
+                {
+                    pvcLogger.Error("DNS could not resolve this programs IP.");
+                }
+            }
+            catch //for some reason Dns.GetHostEntry likes to throw exceptions
+            {
+                pvcLogger.Warn("Issue resolving dns stuff in VoiceProxServer");
+            }
             server.Create(adr, 16); //discord voice cannot support more than 16 people per lobby.
             OnClientConnect += (string discord, string ingame) =>
             {
@@ -750,7 +757,7 @@ namespace Server
                         catch (Exception ex)
                         {
                             //they might not still be trying to connect/might have dcd
-                            pvcLogger.Error("Tried to send packet to a pending client, but something went wrong.");
+                            pvcLogger.Error("Tried to send packet to a pending client, but something went wrong: " + ex.ToString());
                         }
                     }
                     pendingClients.Clear();

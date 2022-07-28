@@ -212,6 +212,7 @@ namespace ProxChatClientGUI
                         nameToId[userName] = user.Id;
                         if (nameToVolCache.ContainsKey(userName))
                         {
+                            modelLogger.Info($"Applying cached vol info of {nameToVolCache[userName]} for {userName}.");
                             float percentVol = nameToVolCache[userName].Volume ?? 1f;
                             long userId = nameToId[userName];
                             ProxChat.Instance.AddMessage(() =>
@@ -448,14 +449,14 @@ namespace ProxChatClientGUI
                                     else
                                     {
                                         //cache for later
-                                        //modelLogger.Warn("Could not set volume from multipacket for user because that user isn't set yet. (Add volume caching feature)");
-                                        modelLogger.Info("Had to cache a volume from a multipacket because that user isn't set yet.");
                                         if (!nameToVolCache.ContainsKey(kvp.Key))
                                         {
+                                            modelLogger.Info($"Had to cache a volume for {kvp.Key} because that user isn't set yet.");
                                             nameToVolCache[kvp.Key] = kvp.Value;
                                         }
-                                        if (nameToVolCache[kvp.Key].Ticker < kvp.Value.Ticker)
+                                        else if (nameToVolCache[kvp.Key].Ticker < kvp.Value.Ticker)
                                         {
+                                            modelLogger.Info($"Had to cache a volume for {kvp.Key} because that user isn't set yet.");
                                             nameToVolCache[kvp.Key] = kvp.Value;
                                         }
                                     }
