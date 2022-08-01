@@ -20,7 +20,6 @@ HashSet<int> shineBag = new HashSet<int>();
 CancellationTokenSource cts = new CancellationTokenSource();
 bool restartRequested = false;
 Task listenTask = server.Listen(cts.Token);
-bool restartRequested = false;
 Logger consoleLogger = new Logger("Console");
 await DiscordBot.Instance.Run();
 {
