@@ -47,6 +47,7 @@ public class Settings {
     public ScenarioTable Scenario { get; set; } = new ScenarioTable();
     public BannedPlayers BanList { get; set; } = new BannedPlayers();
     public DiscordTable Discord { get; set; } = new DiscordTable();
+    public PersistShinesTable PersistShines { get; set; } = new PersistShinesTable();
 
     public class ServerTable {
         public string Address { get; set; } = IPAddress.Any.ToString();
@@ -79,5 +80,11 @@ public class Settings {
         public bool AutoSendPVCPassword { get; set; } = true;
         public float BeginHearingThreshold { get; set; } = 3500f;
         public float FullHearingThreshold { get; set; } = 750f;
+    }
+
+    public class PersistShinesTable
+    {
+        public bool Enabled { get; set; } = false;
+        public string Filename { get; set; } = "./moons.json";
     }
 }
