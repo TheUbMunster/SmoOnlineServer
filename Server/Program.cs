@@ -2,6 +2,7 @@
 using System.Net;
 using System.Numerics;
 using System.Text;
+using System.Text.Json;
 using Server;
 using Shared;
 using Shared.Packet.Packets;
@@ -17,6 +18,7 @@ Server.Server server = new Server.Server();
 HashSet<int> shineBag = new HashSet<int>();
 
 CancellationTokenSource cts = new CancellationTokenSource();
+bool restartRequested = false;
 Task listenTask = server.Listen(cts.Token);
 bool restartRequested = false;
 Logger consoleLogger = new Logger("Console");
@@ -26,8 +28,48 @@ await DiscordBot.Instance.Run();
     consoleLogger.Info("VPS instance loaded " + e.ToString()); //and unstrippable usage force static ctor.
 }
 
-server.ClientJoined += (c, _) =>
+async Task PersistShines()
 {
+    if (!Settings.Instance.PersistShines.Enabled)
+    {
+        return;
+    }
+
+    try
+    {
+        string shineJson = JsonSerializer.Serialize(shineBag);
+        await File.WriteAllTextAsync(Settings.Instance.PersistShines.Filename, shineJson);
+    }
+    catch (Exception ex)
+    {
+        consoleLogger.Error(ex);
+    }
+}
+
+async Task LoadShines()
+{
+    if (!Settings.Instance.PersistShines.Enabled)
+    {
+        return;
+    }
+
+    try
+    {
+        string shineJson = await File.ReadAllTextAsync(Settings.Instance.PersistShines.Filename);
+        var loadedShines = JsonSerializer.Deserialize<HashSet<int>>(shineJson);
+
+        if (loadedShines is not null) shineBag = loadedShines;
+    }
+    catch (Exception ex)
+    {
+        consoleLogger.Error(ex);
+    }
+}
+
+// Load shines table from file
+await LoadShines();
+
+server.ClientJoined += (c, _) => {
     if (Settings.Instance.BanList.Enabled
         && (Settings.Instance.BanList.Players.Contains(c.Id)
             || Settings.Instance.BanList.IpAddresses.Contains(
@@ -68,10 +110,9 @@ async Task ClientSyncShineBag(Client client)
     }
 }
 
-async void SyncShineBag()
-{
-    try
-    {
+async void SyncShineBag() {
+    try {
+        await PersistShines();
         await Parallel.ForEachAsync(server.Clients.ToArray(), async (client, _) => await ClientSyncShineBag(client));
     }
     catch
@@ -105,6 +146,9 @@ server.PacketHandler = (c, p) =>
                         c.Metadata["speedrun"] = true;
                         ((ConcurrentBag<int>)(c.Metadata["shineSync"] ??= new ConcurrentBag<int>())).Clear();
                         shineBag.Clear();
+                        Task.Run(async () => {
+                            await PersistShines();
+                        });
                         c.Logger.Info("Entered Cap on new save, preventing moon sync until Cascade");
                         break;
                     case "WaterfallWorldHomeStage":
@@ -138,7 +182,10 @@ server.PacketHandler = (c, p) =>
                     server.BroadcastReplace(gamePacket, c, (from, to, gp) =>
                     {
                         gp.ScenarioNum = (byte?)to.Metadata["scenario"] ?? 200;
-                        to.Send(gp, from);
+#pragma warning disable CS4014
+                        to.Send(gp, from)
+                            .ContinueWith(x => { if (x.Exception != null) { consoleLogger.Error(x.Exception.ToString()); } });
+#pragma warning restore CS4014
                     });
                     return false;
                 }
@@ -160,7 +207,9 @@ server.PacketHandler = (c, p) =>
                 break;
             }
         case CostumePacket:
-            ClientSyncShineBag(c);
+#pragma warning disable CS4014
+            ClientSyncShineBag(c); //no point logging since entire def has try/catch
+#pragma warning restore CS4014
             c.Metadata["loadedSave"] = true;
             break;
         case ShinePacket shinePacket:
@@ -186,7 +235,10 @@ server.PacketHandler = (c, p) =>
                 playerPacket.Position += Vector3.UnitY * MarioSize((bool)c.Metadata["2d"]);
                 playerPacket.Rotation *= Quaternion.CreateFromRotationMatrix(Matrix4x4.CreateRotationX(MathF.PI))
                                          * Quaternion.CreateFromRotationMatrix(Matrix4x4.CreateRotationY(MathF.PI));
-                server.Broadcast(playerPacket, c);
+#pragma warning disable CS4014
+                server.Broadcast(playerPacket, c)
+                    .ContinueWith(x => { if (x.Exception != null) { consoleLogger.Error(x.Exception.ToString()); } });
+#pragma warning restore CS4014
                 //string? stage = c.Metadata.ContainsKey("lastGamePacket") ? ((GamePacket?)c.Metadata["lastGamePacket"])?.Stage : null;
                 VoiceProxServer.Instance.OnPlayerUpdate(c.Name, playerPacket.Position);//, stage);
                 return false;
@@ -204,7 +256,10 @@ server.PacketHandler = (c, p) =>
                                        * Quaternion.CreateFromRotationMatrix(Matrix4x4.CreateRotationY(MathF.PI));
                     }
 
-                    to.Send(sp, from);
+#pragma warning disable CS4014
+                to.Send(sp, from)
+                    .ContinueWith(x => { if (x.Exception != null) { consoleLogger.Error(x.Exception.ToString()); } });
+#pragma warning restore CS4014
                 });
                 //string? stage = c.Metadata.ContainsKey("lastGamePacket") ? ((GamePacket?)c.Metadata["lastGamePacket"])?.Stage : null;
                 VoiceProxServer.Instance.OnPlayerUpdate(c.Name, playerPacket.Position);//, stage);
@@ -249,11 +304,11 @@ listigteams - prints off all the ingame/team associations as far as the VolumeCa
 
 listigstage - prints off all the ingame/stage associations as far as the VolumeCalculation is aware of
 
-rejoin <usernames...> - forces listed connected (game) clients to leave and rejoin
+rejoin <* | !* (usernames to not rejoin...) | (usernames to rejoin...)> - forces listed connected (game) clients to leave and rejoin
 
-crash <usernames...> - forces listed connected (game) clients to crash
+crash <* | !* (usernames to not crash...) | (usernames to crash...)> - forces listed connected (game) clients to crash
 
-ban <usernames...> - bans the users with the given usernames (this bans the IP, so this will only ban voiceprox clients if they were on the same network)
+ban <* | !* (usernames to not ban...) | (usernames to ban...)> - bans the users with the given usernames (this bans the IP, so this will only ban voiceprox clients if they were on the same network)
 
 send <stage> <id> <scenario[-1..127]> <player/*> - sends the user to the specified stage
 
@@ -403,42 +458,90 @@ CommandHandler.RegisterCommand("voiceprox", args =>
     return "Turned voice proximity " + (proxChat ? "on." : "off.") + (proxChat == before ? " (it was already in that state.)" : "");
 });
 
-CommandHandler.RegisterCommand("rejoin", args =>
-{
-    bool moreThanOne = false;
-    StringBuilder builder = new StringBuilder();
-    Client[] clients = (args.Length == 1 && args[0] == "*"
-        ? server.Clients.Where(c =>
-            c.Connected && args.Any(x => c.Name.StartsWith(x) || (Guid.TryParse(x, out Guid result) && result == c.Id)))
-        : server.Clients.Where(c => c.Connected)).ToArray();
-    foreach (Client user in clients)
-    {
-        if (moreThanOne) builder.Append(", ");
-        builder.Append(user.Name);
-        user.Dispose();
-        moreThanOne = true;
+(HashSet<string> failToFind, HashSet<Client> toActUpon, List<(string arg, IEnumerable<string> amb)> ambig) MultiUserCommandHelper(string[] args) {
+    HashSet<string> failToFind = new();
+    HashSet<Client> toActUpon;
+    List<(string arg, IEnumerable<string> amb)> ambig = new();
+    if (args[0] == "*")
+        toActUpon = new(server.Clients.Where(c => c.Connected));
+    else {
+        toActUpon = args[0] == "!*" ? new(server.Clients.Where(c => c.Connected)) : new();
+        for (int i = (args[0] == "!*" ? 1 : 0); i < args.Length; i++) {
+            string arg = args[i];
+            IEnumerable<Client> search = server.Clients.Where(c => c.Connected &&
+                (c.Name.ToLower().StartsWith(arg.ToLower()) || (Guid.TryParse(arg, out Guid res) && res == c.Id)));
+            if (!search.Any())
+                failToFind.Add(arg); //none found
+            else if (search.Count() > 1) {
+                Client? exact = search.FirstOrDefault(x => x.Name == arg);
+                if (!ReferenceEquals(exact, null)) {
+                    //even though multiple matches, since exact match, it isn't ambiguous
+                    if (args[0] == "!*")
+                        toActUpon.Remove(exact);
+                    else
+                        toActUpon.Add(exact);
+                }
+                else {
+                    if (!ambig.Any(x => x.arg == arg))
+                        ambig.Add((arg, search.Select(x => x.Name))); //more than one match
+                    foreach (var rem in search.ToList()) //need copy because can't remove from list while iterating over it
+                        toActUpon.Remove(rem);
+                }
+            }
+            else {
+                //only one match, so autocomplete
+                if (args[0] == "!*")
+                    toActUpon.Remove(search.First());
+                else
+                    toActUpon.Add(search.First());
+            }
+        }
+    }
+    return (failToFind, toActUpon, ambig);
+}
+
+CommandHandler.RegisterCommand("rejoin", args => {
+    if (args.Length == 0) {
+        return "Usage: rejoin <* | !* (usernames to not rejoin...) | (usernames to rejoin...)>";
     }
 
-    return clients.Length > 0 ? $"Caused {builder} to rejoin" : "Usage: rejoin <usernames...>";
+    var res = MultiUserCommandHelper(args);
+
+    StringBuilder sb = new StringBuilder();
+    sb.Append(res.toActUpon.Count > 0 ? "Banned: " + string.Join(", ", res.toActUpon.Select(x => $"\"{x.Name}\"")) : "");
+    sb.Append(res.failToFind.Count > 0 ? "\nFailed to find matches for: " + string.Join(", ", res.failToFind.Select(x => $"\"{x.ToLower()}\"")) : "");
+    if (res.ambig.Count > 0) {
+        res.ambig.ForEach(x => {
+            sb.Append($"\nAmbiguous for \"{x.arg}\": {string.Join(", ", x.amb.Select(x => $"\"{x}\""))}");
+        });
+    }
+
+    foreach (Client user in res.toActUpon) {
+        user.Dispose();
+    }
+
+    return sb.ToString();
 });
 
-CommandHandler.RegisterCommand("crash", args =>
-{
-    bool moreThanOne = false;
-    StringBuilder builder = new StringBuilder();
-    Client[] clients = (args.Length == 1 && args[0] == "*"
-        ? server.Clients.Where(c =>
-            c.Connected && args.Any(x => c.Name.StartsWith(x) || (Guid.TryParse(x, out Guid result) && result == c.Id)))
-        : server.Clients.Where(c => c.Connected)).ToArray();
-    foreach (Client user in clients)
-    {
-        if (moreThanOne) builder.Append(", ");
-        moreThanOne = true;
-        builder.Append(user.Name);
-        Task.Run(async () =>
-        {
-            await user.Send(new ChangeStagePacket
-            {
+CommandHandler.RegisterCommand("crash", args => {
+    if (args.Length == 0) {
+        return "Usage: crash <* | !* (usernames to not crash...) | (usernames to crash...)>";
+    }
+
+    var res = MultiUserCommandHelper(args);
+
+    StringBuilder sb = new StringBuilder();
+    sb.Append(res.toActUpon.Count > 0 ? "Banned: " + string.Join(", ", res.toActUpon.Select(x => $"\"{x.Name}\"")) : "");
+    sb.Append(res.failToFind.Count > 0 ? "\nFailed to find matches for: " + string.Join(", ", res.failToFind.Select(x => $"\"{x.ToLower()}\"")) : "");
+    if (res.ambig.Count > 0) {
+        res.ambig.ForEach(x => {
+            sb.Append($"\nAmbiguous for \"{x.arg}\": {string.Join(", ", x.amb.Select(x => $"\"{x}\""))}");
+        });
+    }
+
+    foreach (Client user in res.toActUpon) {
+        Task.Run(async () => {
+            await user.Send(new ChangeStagePacket {
                 Id = "$among$us/SubArea",
                 Stage = "$agogusStage",
                 Scenario = 21,
@@ -448,27 +551,28 @@ CommandHandler.RegisterCommand("crash", args =>
         });
     }
 
-    return clients.Length > 0 ? $"Crashed {builder}" : "Usage: crash <usernames...>";
+    return sb.ToString();
 });
 
-CommandHandler.RegisterCommand("ban", args =>
-{
-    bool moreThanOne = false;
-    StringBuilder builder = new StringBuilder();
+CommandHandler.RegisterCommand("ban", args => {
+    if (args.Length == 0) {
+        return "Usage: ban <* | !* (usernames to not ban...) | (usernames to ban...)>";
+    }
 
-    Client[] clients = (args.Length == 1 && args[0] == "*"
-        ? server.Clients.Where(c =>
-            c.Connected && args.Any(x => c.Name.StartsWith(x) || (Guid.TryParse(x, out Guid result) && result == c.Id)))
-        : server.Clients.Where(c => c.Connected)).ToArray();
-    foreach (Client user in clients)
-    {
-        if (moreThanOne) builder.Append(", ");
-        moreThanOne = true;
-        builder.Append(user.Name);
-        Task.Run(async () =>
-        {
-            await user.Send(new ChangeStagePacket
-            {
+    var res = MultiUserCommandHelper(args);
+
+    StringBuilder sb = new StringBuilder();
+    sb.Append(res.toActUpon.Count > 0 ? "Banned: " + string.Join(", ", res.toActUpon.Select(x => $"\"{x.Name}\"")) : "");
+    sb.Append(res.failToFind.Count > 0 ? "\nFailed to find matches for: " + string.Join(", ", res.failToFind.Select(x => $"\"{x.ToLower()}\"")) : "");
+    if (res.ambig.Count > 0) {
+        res.ambig.ForEach(x => {
+            sb.Append($"\nAmbiguous for \"{x.arg}\": {string.Join(", ", x.amb.Select(x => $"\"{x}\""))}");
+        });
+    }
+
+    foreach (Client user in res.toActUpon) {
+        Task.Run(async () => {
+            await user.Send(new ChangeStagePacket {
                 Id = "$agogus/banned4lyfe",
                 Stage = "$ejected",
                 Scenario = 69,
@@ -485,13 +589,8 @@ CommandHandler.RegisterCommand("ban", args =>
         });
     }
 
-    if (clients.Length > 0)
-    {
-        Settings.SaveSettings();
-        return $"Banned {builder}.";
-    }
-
-    return "Usage: ban <usernames...>";
+    Settings.SaveSettings();
+    return sb.ToString();
 });
 
 CommandHandler.RegisterCommand("send", args =>
@@ -764,7 +863,7 @@ CommandHandler.RegisterCommand("shine", args =>
         case "clear" when args.Length == 1:
             shineBag.Clear();
             foreach (ConcurrentBag<int> playerBag in server.Clients.Select(serverClient =>
-                (ConcurrentBag<int>)serverClient.Metadata["shineSync"])) playerBag.Clear();
+                (ConcurrentBag<int>)serverClient.Metadata["shineSync"]!)) playerBag?.Clear();
 
             return "Cleared shine bags";
         case "sync" when args.Length == 1:
@@ -822,8 +921,7 @@ CommandHandler.RegisterCommandAliases(_ =>
 #endregion
 
 #region Event Subscription
-Console.CancelKeyPress += (_, e) =>
-{
+Console.CancelKeyPress += (_, e) => {
     e.Cancel = true;
     consoleLogger.Info("Received Ctrl+C");
     DiscordBot.Instance.ClosePVCLobbyForQuit();
@@ -838,8 +936,8 @@ AppDomain.CurrentDomain.ProcessExit += (_, e) =>
 #endregion
 
 #region Input loop
-Task.Run(() =>
-{
+#pragma warning disable CS4014
+Task.Run(() => {
     consoleLogger.Info("Run help command for valid commands.");
     while (true)
     {
@@ -852,11 +950,11 @@ Task.Run(() =>
             }
         }
     }
-});
+}).ContinueWith(x => { if (x.Exception != null) { consoleLogger.Error(x.Exception.ToString()); } });
+#pragma warning restore CS4014
 #endregion
 
 await listenTask;
-
 if (restartRequested) //need to do this here because this needs to happen after the listener closes, and there isn't an
                       //easy way to sync in the restartserver command without it exiting Main()
 {
@@ -864,7 +962,7 @@ if (restartRequested) //need to do this here because this needs to happen after 
     const string unableToStartMsg = "Unable to ascertain the executable location, you'll need to re-run the server manually.";
     if (path != null) //path is probably just "Server", but in the context of the assembly, that's all you need to restart it.
     {
-        Console.WriteLine($"Running (pid): {System.Diagnostics.Process.Start(path)?.Id.ToString() ?? unableToStartMsg}");
+        Console.WriteLine($"Server Running on (pid): {System.Diagnostics.Process.Start(path)?.Id.ToString() ?? unableToStartMsg}");
     }
     else
         consoleLogger.Info(unableToStartMsg);
