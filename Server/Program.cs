@@ -291,7 +291,7 @@ ip - prints the IP address that voice proximity clients/game clients should use 
 
 getlobbysecret, gls - prints the lobby secret (If clients are prompted to enter this in their clients, that's because setautosendsecret is off)
 
-setautosendsecret, sass <on|off> - enables/disables the automatic sending of the discord lobby secret to clients when attempting to connect
+setautosendsecret, sass <on|off> - enables/disables the automatic sending of the discord lobby secret to clients when attempting to connect (does not apply to the very first client that joins)
 
 voiceproxdistances, vpxd <optional (both or neither): beginheardist, fullheardist> - prints or sets the hearing distances for voice proximity
 

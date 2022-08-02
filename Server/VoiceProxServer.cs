@@ -365,7 +365,7 @@ namespace Server
                 //    igToPendingPackets.Remove(ingame);
                 //}
                 volCalc.SetIGDiscordAssoc(ingame, discord);
-                if (discordUserCount == 1 && before == 0)
+                if (discordUserCount != 0 && before == 0)
                 {
                     pvcLogger.Info("Was no lobby, first user joined, now attempting to CloseThenOpenPVCLobby.");
                     //igToPos.Clear();
@@ -745,6 +745,8 @@ namespace Server
                 pvcLogger.Info("Sent lobby join info packet to pending clients.");
                 AddMessage(() =>
                 {
+                    bool sass = Settings.Instance.Discord.AutoSendPVCPassword;
+                    bool noSassFirstPending = true;
                     foreach (Peer pending in pendingClients)
                     {
                         try
@@ -752,8 +754,9 @@ namespace Server
                             SendPacket(new PVCLobbyPacket()
                             {
                                 LobbyId = lobbyInfo.Value.id,
-                                Secret = Settings.Instance.Discord.AutoSendPVCPassword ? lobbyInfo.Value.secret : null
+                                Secret = (sass || noSassFirstPending) ? lobbyInfo.Value.secret : null
                             }, pending);
+                            noSassFirstPending = false; //sass for first client regardless of setting.
                         }
                         catch (Exception ex)
                         {
