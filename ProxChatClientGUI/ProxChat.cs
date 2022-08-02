@@ -112,7 +112,8 @@ namespace ProxChatClientGUI
                 DateTime logtime = DateTime.Now;
                 string data = Logger.PrefixNewLines(text, $"{{{logtime}}} {level} [{source}]");
                 Directory.CreateDirectory("logs");
-                File.AppendAllText($"logs\\log_{launchTime.Month}-{launchTime.Day}-{launchTime.Year}--{launchTime.Hour}-{launchTime.Minute}-{launchTime.Second}.txt", data);
+                string filename = Path.Combine("logs", $"log_{launchTime.Month}-{launchTime.Day}-{launchTime.Year}--{launchTime.Hour}-{launchTime.Minute}-{launchTime.Second}.txt");
+                File.AppendAllText(filename, data);
             });
             InitializeComponent();
             var font = new System.Drawing.Text.PrivateFontCollection();
