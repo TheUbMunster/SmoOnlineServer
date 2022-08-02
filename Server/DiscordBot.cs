@@ -41,19 +41,9 @@ public class DiscordBot {
     private DiscordChannel? LogChannel;
     private bool Reconnecting;
 
-    //#region Discord voice stuff
-    //private Dictionary<string, long> discUserToId = new Dictionary<string, long>();
-    //private Dictionary<long, Discord.User> discUserTable = new Dictionary<long, Discord.User>();
-    private Queue<Action> messageQueue = new Queue<Action>();
-    //private Discord.Discord? pvcDiscord = null;
     private HttpClient webClient = new HttpClient();
     private Lobby? pvcLobby = null;
     private object lobbyLock = new object();
-    //private Discord.LobbyManager? lobbyManager = null;
-    //private Discord.VoiceManager? voiceManager = null;
-    //private Discord.UserManager? userManager = null;
-    //private Discord.User? currentUser = null;
-    //#endregion
 
     private DiscordBot() {
         Token = Config.Token;
@@ -185,6 +175,7 @@ public class DiscordBot {
             {
                 //TODO: try open lobby after defer.
                 float time = float.Parse(j["retry_after"].ToString());
+                Logger.Warn("PVC lobby could not be opened (rate limited), retry after " + time);
                 success = false;
             }
             else
