@@ -530,7 +530,7 @@ namespace Server
 
         private void HandleRecieveEvent(ref Event netEvent)
         {
-            Console.WriteLine("Recieved something");
+            //Console.WriteLine("Recieved something");
             //if (!discordToPeer.Values.Contains(netEvent.Peer))
             {
                 PVCPacket? packet = Protocol.Deserialize<PVCPacket>(netEvent.Packet.Data, netEvent.Packet.Length);

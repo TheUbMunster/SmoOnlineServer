@@ -9,10 +9,7 @@ public class Settings
 {
     public class VolumePreferences
     {
-        //TODO: add setting for keepalivems time
-        private Dictionary<string, byte>? UsernameToVolume { get; set; }
-        public VolumePreferences() { }
-
+        public Dictionary<string, byte>? UsernameToVolume { get; set; }
         public byte this[string username]
         {
             get
@@ -69,7 +66,7 @@ public class Settings
     public string? ServerHost { get; set; }
     public string? IngameName { get; set; }
     public byte? DefaultVolume { get; set; } = 50;
-    public VolumePreferences? VolumePrefs { get; private set; } = new VolumePreferences();
+    public VolumePreferences? VolumePrefs { get; set; } = new VolumePreferences();
     /// <summary>
     /// //"Always On", "Push-To-Talk", "Push-To-Mute"
     /// </summary>

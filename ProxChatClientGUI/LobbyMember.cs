@@ -34,6 +34,32 @@ namespace ProxChatClientGUI
             get => muted;
             set
             {
+                //todo
+                //switch (muted, value)
+                //{
+                //    case (true, true):
+                //        //mute but already muted
+                //        break;
+                //    case (false, false):
+                //        //ensure undeaf
+                //        deafCallback?.Invoke(false);
+                //        break;
+                //    case (true, false):
+                //        //unmuting
+                //        deafenButton.BackgroundImage = headphones;
+                //        muteButton.BackgroundImage = microphone;
+                //        muteCallback?.Invoke(false);
+                //        deafCallback?.Invoke(false);
+                //        break;
+                //    case (false, true):
+                //        //muting
+                //        muteButton.BackgroundImage = crossedMicrophone;
+                //        muteCallback?.Invoke(true);
+                //        break;
+                //}
+                //muted = value;
+                //muteButton.Text = "";
+
                 try
                 {
                     if (value)
@@ -43,9 +69,13 @@ namespace ProxChatClientGUI
                     else
                     {
                         muteButton.BackgroundImage = microphone;
+                        if (Deaf)
+                        {
+                            deafenButton.BackgroundImage = headphones;
+                            deafCallback?.Invoke(false);
+                        }
                     }
-                    if (value != muted)
-                        muteCallback?.Invoke(value);
+                    muteCallback?.Invoke(value);
                     muteButton.Text = "";
                 }
                 catch
@@ -62,6 +92,32 @@ namespace ProxChatClientGUI
             get => deaf;
             set
             {
+                //switch (deaf, value)
+                //{
+                //    case (true, true):
+                //        //deafening when already deafened
+                //        break;
+                //    case (false, false):
+                //        //undeafening when already undeafened
+                //        break;
+                //    case (true, false):
+                //        //undeafening
+                //        deafenButton.BackgroundImage = headphones;
+                //        muteButton.BackgroundImage = microphone;
+                //        muteCallback?.Invoke(false);
+                //        deafCallback?.Invoke(false);
+                //        break;
+                //    case (false, true):
+                //        //deafeaning
+                //        deafenButton.BackgroundImage = crossedHeadphones;
+                //        muteButton.BackgroundImage = crossedMicrophone;
+                //        muteCallback?.Invoke(true);
+                //        deafCallback?.Invoke(true);
+                //        break;
+                //}
+                //deaf = value;
+                //deafenButton.Text = "";
+
                 try
                 {
                     if (value)
@@ -72,8 +128,8 @@ namespace ProxChatClientGUI
                     {
                         deafenButton.BackgroundImage = headphones;
                     }
-                    if (value != deaf)
-                        deafCallback?.Invoke(value);
+                    Muted = value;
+                    deafCallback?.Invoke(value);
                     deafenButton.Text = "";
                 }
                 catch
