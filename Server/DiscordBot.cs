@@ -157,7 +157,10 @@ public class DiscordBot {
                 Settings.Instance.Discord.AppID = (long?)DiscordClient?.CurrentUser.Id;
                 Logger.Warn("The AppID was not set in settings, attempting to glean this information from the bot.");
                 if (Settings.Instance.Discord.AppID != null)
+                {
+                    Logger.Info("Gleaned the AppID " + Settings.Instance.Discord.AppID);
                     Settings.SaveSettings();
+                }
             }
             var payload = new
             {

@@ -900,6 +900,7 @@ CommandHandler.RegisterCommand("restartserver", args =>
     {
         consoleLogger.Info("Received restartserver command");
         restartRequested = true;
+        DiscordBot.Instance.ClosePVCLobbyForQuit();
         cts.Cancel();
         return "restarting...";
     }
