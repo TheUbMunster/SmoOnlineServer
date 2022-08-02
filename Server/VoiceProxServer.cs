@@ -352,6 +352,7 @@ namespace Server
             {
                 pvcLogger.Warn("Issue resolving dns stuff in VoiceProxServer");
             }
+            adr.SetIP("0.0.0.0");
             server.Create(adr, 16); //discord voice cannot support more than 16 people per lobby.
             OnClientConnect += (string discord, string ingame) =>
             {
