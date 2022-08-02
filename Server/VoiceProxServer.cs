@@ -314,7 +314,8 @@ namespace Server
             {
                 DateTime logtime = DateTime.Now;
                 string data = Logger.PrefixNewLines(text, $"{{{logtime}}} {level} [{source}]");
-                File.AppendAllText($"log_{launchTime.Month}-{launchTime.Day}-{launchTime.Year}--{launchTime.Hour}-{launchTime.Minute}-{launchTime.Second}.txt", data);
+                Directory.CreateDirectory("logs");
+                File.AppendAllText($"logs\\log_{launchTime.Month}-{launchTime.Day}-{launchTime.Year}--{launchTime.Hour}-{launchTime.Minute}-{launchTime.Second}.txt", data);
             });
             Library.Initialize();
             server = new Host();
