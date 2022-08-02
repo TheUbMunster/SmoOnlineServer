@@ -342,7 +342,7 @@ CommandHandler.RegisterCommandAliases(args =>
     }
     else
     {
-        return Settings.Instance.Discord.AppID.ToString() ?? "(No app id assigned in settings.json";
+        return Settings.Instance.Discord.AppID.ToString() ?? "(No app id assigned in settings.json)";
     }
 }, "appid");
 

@@ -4,11 +4,28 @@ using Microsoft.Extensions.Logging;
 using Shared;
 using System.Net.Http;
 using System.Net.Http.Headers;
-//using Discord;
 
 namespace Server;
 
 public class DiscordBot {
+
+    #region VoiceProxTypeDefs
+    public struct Lobby
+    {
+        public enum LobbyType
+        {
+            Private = 1,
+            Public = 2
+        }
+        public uint Capacity { get; init; }
+        public long Id { get; init; }
+        public bool Locked { get; init; }
+        public long OwnerId { get; init; }
+        public LobbyType Type { get; init; }
+        public string Secret { get; init; }
+    }
+    #endregion
+
     static DiscordBot()
     {
         Instance = new DiscordBot();
@@ -30,7 +47,7 @@ public class DiscordBot {
     private Queue<Action> messageQueue = new Queue<Action>();
     //private Discord.Discord? pvcDiscord = null;
     private HttpClient webClient = new HttpClient();
-    private Discord.Lobby? pvcLobby = null;
+    private Lobby? pvcLobby = null;
     private object lobbyLock = new object();
     //private Discord.LobbyManager? lobbyManager = null;
     //private Discord.VoiceManager? voiceManager = null;
@@ -145,10 +162,17 @@ public class DiscordBot {
                     webClient.DeleteAsync($"https://discord.com/api/v10/lobbies/{pvcLobby.Value.Id}");
                 }
             }
+            if (Settings.Instance.Discord.AppID == null)
+            {
+                Settings.Instance.Discord.AppID = (long?)DiscordClient?.CurrentUser.Id;
+                Logger.Warn("The AppID was not set in settings, attempting to glean this information from the bot.");
+                if (Settings.Instance.Discord.AppID != null)
+                    Settings.SaveSettings();
+            }
             var payload = new
             {
                 application_id = Settings.Instance.Discord.AppID.ToString(),
-                type = ((int)Discord.LobbyType.Private).ToString(),
+                type = ((int)Lobby.LobbyType.Private).ToString(),
                 capacity = (Settings.Instance.Server.MaxPlayers + 1).ToString()
             };
             HttpContent content = new StringContent(Newtonsoft.Json.JsonConvert.SerializeObject(payload), System.Text.Encoding.UTF8, "application/json");
@@ -168,13 +192,13 @@ public class DiscordBot {
                 lock (lobbyLock)
                 {
                     //j can be a rate limit response, check for that case
-                    pvcLobby = new Discord.Lobby()
+                    pvcLobby = new Lobby()
                     {
                         Capacity = uint.Parse(j["capacity"].ToString()),
                         Id = long.Parse(j["id"].ToString()),
                         Locked = bool.Parse(j["locked"].ToString()),
                         OwnerId = long.Parse(j["owner_id"].ToString()),
-                        Type = (Discord.LobbyType)int.Parse(j["type"].ToString()),
+                        Type = (Lobby.LobbyType)int.Parse(j["type"].ToString()),
                         Secret = j["secret"].ToString()
                     };
                     Logger.Info("PVC lobby open.");
