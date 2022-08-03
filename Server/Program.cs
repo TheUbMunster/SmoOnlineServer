@@ -786,8 +786,17 @@ CommandHandler.RegisterCommand("maxplayers", args =>
     return $"Saved and set max players to {maxPlayers}";
 });
 
-CommandHandler.RegisterCommand("list",
-    _ => $"List: {string.Join("\n      ", server.Clients.Where(x => x.Connected).Select(x => $"{x.Name} ({x.Id})"))}");
+CommandHandler.RegisterCommand("list", _ =>
+{
+    return $"List: " + string.Join("\n      ", 
+        server.Clients.Where(x => x.Connected)
+        .Select(x =>
+        {
+            GamePacket? gp = x.Metadata.ContainsKey("lastGamePacket") ? (GamePacket)x.Metadata["lastGamePacket"] : null;
+            return $"{x.Name} ({x.Id}) [Stage: {gp?.Stage ?? "(null)"}, Scenario: {gp?.ScenarioNum.ToString() ?? "(null)"}]";
+        }));
+});
+   
 
 CommandHandler.RegisterCommand("flip", args =>
 {
