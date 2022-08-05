@@ -16,6 +16,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "External Items", "External 
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ProxChatClientGUI", "ProxChatClientGUI\ProxChatClientGUI.csproj", "{BF72E8FD-BE7B-4EE3-A216-35E7BDB6ECC6}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ProxChatClientGUICrossPlatform", "ProxChatClientGUICrossPlatform\ProxChatClientGUICrossPlatform.csproj", "{B9128576-D7DA-4FF1-BF3E-84B8E665F940}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -56,6 +58,14 @@ Global
 		{BF72E8FD-BE7B-4EE3-A216-35E7BDB6ECC6}.Release|Any CPU.Build.0 = Release|Any CPU
 		{BF72E8FD-BE7B-4EE3-A216-35E7BDB6ECC6}.Release|x86.ActiveCfg = Release|x86
 		{BF72E8FD-BE7B-4EE3-A216-35E7BDB6ECC6}.Release|x86.Build.0 = Release|x86
+		{B9128576-D7DA-4FF1-BF3E-84B8E665F940}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B9128576-D7DA-4FF1-BF3E-84B8E665F940}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B9128576-D7DA-4FF1-BF3E-84B8E665F940}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{B9128576-D7DA-4FF1-BF3E-84B8E665F940}.Debug|x86.Build.0 = Debug|Any CPU
+		{B9128576-D7DA-4FF1-BF3E-84B8E665F940}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B9128576-D7DA-4FF1-BF3E-84B8E665F940}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B9128576-D7DA-4FF1-BF3E-84B8E665F940}.Release|x86.ActiveCfg = Release|Any CPU
+		{B9128576-D7DA-4FF1-BF3E-84B8E665F940}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
