@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -10,6 +10,26 @@
     <EmbeddedResource Include="**\*.glade">
       <LogicalName>%(Filename)%(Extension)</LogicalName>
     </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
+  	<Content Include="Images\**">
+  		<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+  	</Content>
+  </ItemGroup>
+  
+  <ItemGroup>
+  	<Content Include="Fonts\**">
+  		<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+  	</Content>
+  </ItemGroup>
+  
+  <ItemGroup>
+  	<ContentWithTargetPath Include="libs\discord_game_sdk.dll">
+  		<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+  		<TargetPath>discord_game_sdk.dll</TargetPath>
+  	</ContentWithTargetPath>
+  	<None Include="libs\discord_game_sdk.dll"/>
   </ItemGroup>
 
   <ItemGroup>
