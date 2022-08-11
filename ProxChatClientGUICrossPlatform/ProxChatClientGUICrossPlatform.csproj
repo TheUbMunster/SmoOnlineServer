@@ -24,6 +24,22 @@
 		</Content>
 	</ItemGroup>
 
+	<!--<ItemGroup>
+		<_LibsItems Include="libs\*.*"/>
+	</ItemGroup>
+	
+	<Target Name="CopyLibs" AfterTargets="Build">
+		<Message Text="Copying libs to executable directory..." Importance="high"/>
+		<Copy SourceFiles="$(_LibsItems)" DestinationFolder="$(BuildOutput)"/>
+		<Message Text="Copying libs to executable directory successfully!" Importance="high"/>
+	</Target>-->
+	
+	<!--<ItemGroup>
+		<Content Include="libs\*.*">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</Content>
+	</ItemGroup>-->
+	
 	<ItemGroup>
 		<ContentWithTargetPath Include="libs\discord_game_sdk.dll">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
