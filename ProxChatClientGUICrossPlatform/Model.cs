@@ -191,9 +191,22 @@ namespace ProxChatClientGUICrossPlatform
                 };
 #endregion
 
-#region Setup
+                #region Setup
                 Library.Initialize();
-                discord = new Discord.Discord(Settings.Instance.DiscordAppID!.Value, (UInt64)Discord.CreateFlags.Default);
+                try
+                {
+                    discord = new Discord.Discord(Settings.Instance.DiscordAppID!.Value, (UInt64)Discord.CreateFlags.Default);
+                }
+                catch (Exception ex)
+                {
+                    modelLogger.Error("Couldn't load the discord! " + ex.ToString());
+                    return;
+                }
+                if (discord == null)
+                {
+                    modelLogger.Error("Discord loaded without exception, but was null!");
+                    return;
+                }
                 lobbyManager = discord.GetLobbyManager();
                 voiceManager = discord.GetVoiceManager();
                 imageManager = discord.GetImageManager();
@@ -216,9 +229,9 @@ namespace ProxChatClientGUICrossPlatform
                     discord.RunCallbacks();
                 }
                 userManager.OnCurrentUserUpdate -= upd; //if the user changes nick in the middle of a game it will mess things up.
-#endregion
+                #endregion
 
-#region Self Event Subscription
+                #region Self Event Subscription
                 lobbyManager.OnMemberConnect += (long lobbyId, long userId) =>
                 {
                     idToVolPercent[userId] = 0f;
@@ -298,7 +311,7 @@ namespace ProxChatClientGUICrossPlatform
                 };
 #endregion
 
-#region Loop
+                #region Loop
                 try
                 {
                     //System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
