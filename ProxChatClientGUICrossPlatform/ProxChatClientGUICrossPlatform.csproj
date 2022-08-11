@@ -1,43 +1,75 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <OutputType>WinExe</OutputType>
-    <TargetFramework>net6.0</TargetFramework>
-  </PropertyGroup>
+	<PropertyGroup>
+		<OutputType>WinExe</OutputType>
+		<TargetFramework>net6.0</TargetFramework>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <None Remove="**\*.glade" />
-    <EmbeddedResource Include="**\*.glade">
-      <LogicalName>%(Filename)%(Extension)</LogicalName>
-    </EmbeddedResource>
-  </ItemGroup>
+	<ItemGroup>
+		<None Remove="**\*.glade" />
+		<EmbeddedResource Include="**\*.glade">
+			<LogicalName>%(Filename)%(Extension)</LogicalName>
+		</EmbeddedResource>
+	</ItemGroup>
 
-  <ItemGroup>
-  	<Content Include="Images\**">
-  		<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-  	</Content>
-  </ItemGroup>
-  
-  <ItemGroup>
-  	<Content Include="Fonts\**">
-  		<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-  	</Content>
-  </ItemGroup>
-  
-  <ItemGroup>
-  	<ContentWithTargetPath Include="libs\discord_game_sdk.dll">
-  		<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-  		<TargetPath>discord_game_sdk.dll</TargetPath>
-  	</ContentWithTargetPath>
-  	<None Include="libs\discord_game_sdk.dll" />
-  </ItemGroup>
+	<ItemGroup>
+		<Content Include="Images\**">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</Content>
+	</ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="GtkSharp" Version="3.24.24.*" />
-  </ItemGroup>
+	<ItemGroup>
+		<Content Include="Fonts\**">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</Content>
+	</ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\Shared\Shared.csproj" />
-  </ItemGroup>
+	<ItemGroup>
+		<ContentWithTargetPath Include="libs\discord_game_sdk.dll">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			<TargetPath>discord_game_sdk.dll</TargetPath>
+		</ContentWithTargetPath>
+		<None Include="libs\discord_game_sdk.dll" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ContentWithTargetPath Include="libs\discord_game_sdk.bundle">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			<TargetPath>discord_game_sdk.bundle</TargetPath>
+		</ContentWithTargetPath>
+		<None Include="libs\discord_game_sdk.bundle" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ContentWithTargetPath Include="libs\discord_game_sdk.dll.lib">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			<TargetPath>discord_game_sdk.dll.lib</TargetPath>
+		</ContentWithTargetPath>
+		<None Include="libs\discord_game_sdk.dll.lib" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ContentWithTargetPath Include="libs\discord_game_sdk.dylib">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			<TargetPath>discord_game_sdk.dylib</TargetPath>
+		</ContentWithTargetPath>
+		<None Include="libs\discord_game_sdk.dylib" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ContentWithTargetPath Include="libs\discord_game_sdk.so">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			<TargetPath>discord_game_sdk.so</TargetPath>
+		</ContentWithTargetPath>
+		<None Include="libs\discord_game_sdk.so" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="GtkSharp" Version="3.24.24.*" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Shared\Shared.csproj" />
+	</ItemGroup>
 
 </Project>
