@@ -29,11 +29,15 @@
   		<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
   		<TargetPath>discord_game_sdk.dll</TargetPath>
   	</ContentWithTargetPath>
-  	<None Include="libs\discord_game_sdk.dll"/>
+  	<None Include="libs\discord_game_sdk.dll" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="GtkSharp" Version="3.24.24.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Shared\Shared.csproj" />
   </ItemGroup>
 
 </Project>

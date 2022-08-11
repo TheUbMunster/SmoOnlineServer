@@ -133,7 +133,7 @@ namespace ProxChatClientGUI
                             }
                             break;
                         case RecordingMode.None:
-                        default: //this shouldn't happen
+                        default: //"default" shouldn't happen
                             break;
                     }
                     recordingMode = RecordingMode.None;
@@ -254,7 +254,7 @@ namespace ProxChatClientGUI
                 ProxChat.Instance.SetPercievedVolumeVisible(Settings.Instance.PercievedVolumeSliderEnabled!.Value);
             }
             Settings.SaveSettings();
-            if (needToCloseIfRunning && serverWasRunningUponOpening || needToClose)
+            if ((needToCloseIfRunning && serverWasRunningUponOpening) || needToClose)
             {
                 Application.Restart();
                 Environment.Exit(0); //there isn't a better way to do this other than to: start up another app

@@ -13,7 +13,7 @@ namespace ProxChatClientGUICrossPlatform
             var app = new Application("org.ProxChatClientGUICrossPlatform.ProxChatClientGUICrossPlatform", GLib.ApplicationFlags.None);
             app.Register(GLib.Cancellable.Current);
 
-            var win = new MainWindow();
+            var win = new ProxChat();
             app.AddWindow(win);
 
             win.Show();
