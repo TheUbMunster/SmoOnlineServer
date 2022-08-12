@@ -13,11 +13,11 @@ namespace ProxChatClientGUICrossPlatform
     {
         private static Shared.Logger lobbyMemberLogger = new Shared.Logger("LobbyMemberUI");
 
-        [UI] private static readonly Image directImage = ProxChat.ResizeImage(IOPath.Join("Images", "direct.png"), 100, 100);
-        [UI] private static readonly Image headphonesImage = ProxChat.ResizeImage(IOPath.Join("Images", "headphones.png"), 50, 50);
-        [UI] private static readonly Image headphonesCrossedImage = ProxChat.ResizeImage(IOPath.Join("Images", "headphones-crossed.png"), 50, 50);
-        [UI] private static readonly Image micImage = ProxChat.ResizeImage(IOPath.Join("Images", "mic.png"), 50, 50);
-        [UI] private static readonly Image micCrossedImage = ProxChat.ResizeImage(IOPath.Join("Images", "mic-crossed.png"), 50, 50);
+        [UI] private readonly Image directImage = ProxChat.ResizeImage(IOPath.Join("Images", "direct.png"), 100, 100);
+        [UI] private readonly Image headphonesImage = ProxChat.ResizeImage(IOPath.Join("Images", "headphones.png"), 50, 50);
+        [UI] private readonly Image headphonesCrossedImage = ProxChat.ResizeImage(IOPath.Join("Images", "headphones-crossed.png"), 50, 50);
+        [UI] private readonly Image micImage = ProxChat.ResizeImage(IOPath.Join("Images", "mic.png"), 50, 50);
+        [UI] private readonly Image micCrossedImage = ProxChat.ResizeImage(IOPath.Join("Images", "mic-crossed.png"), 50, 50);
 
         private Action<bool>? muteCallback; //true mute, false unmute
         private Action<bool>? deafCallback; //true deaf, false undeaf
