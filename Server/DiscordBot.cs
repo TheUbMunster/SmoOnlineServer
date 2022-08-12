@@ -64,8 +64,8 @@ public class DiscordBot {
         //trigger a call to the static Settings constructor, which therefore will load the settings.
         //That means if you access any setting via Settings.Instance."SomeSetting", it will automatically
         //load the settings.
-        Settings.LoadHandler += SettingsLoadHandler; 
-
+        Settings.LoadHandler += SettingsLoadHandler;
+        Logger.Info("Discord bot ctor completed");
     }
 
     private async Task Reconnect() {
@@ -259,7 +259,9 @@ public class DiscordBot {
                 Token = Config.Token,
                 MinimumLogLevel = LogLevel.None
             });
+            Logger.Info("About to log in the bot...");
             await DiscordClient.ConnectAsync(new DiscordActivity("Hide and Seek", DSharpPlus.Entities.ActivityType.Competing));
+            Logger.Info("DiscordClient.ConnectAsync did return (bot should be logged in)");
             SettingsLoadHandler();
             Logger.Info(
                 $"Discord bot logged in as {DiscordClient.CurrentUser.Username}#{DiscordClient.CurrentUser.Discriminator}");
