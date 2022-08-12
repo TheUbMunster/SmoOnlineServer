@@ -201,22 +201,22 @@ namespace ProxChatClientGUICrossPlatform
         #region UI
         public void SetUserTalking(bool talking)
         {
-            if (talking)
-            {
-                var oldCh = ((Grid)lbr.Child).GetChildAt(0, 0);
-                if (oldCh != null)
-                    ((Grid)lbr.Child).Remove(oldCh);
-                if (highUser != null)
-                    ((Grid)lbr.Child).Attach(highUser, 0, 0, 1, 2);
-            }
-            else
-            {
-                var oldCh = ((Grid)lbr.Child).GetChildAt(0, 0);
-                if (oldCh != null)
-                    ((Grid)lbr.Child).Remove(oldCh);
-                if (normalUser != null)
-                    ((Grid)lbr.Child).Attach(normalUser, 0, 0, 1, 2);
-            }
+            //if (talking)
+            //{
+            //    var oldCh = ((Grid)lbr.Child).GetChildAt(0, 0);
+            //    if (oldCh != null)
+            //        ((Grid)lbr.Child).Remove(oldCh);
+            //    if (highUser != null)
+            //        ((Grid)lbr.Child).Attach(highUser, 0, 0, 1, 2);
+            //}
+            //else
+            //{
+            //    var oldCh = ((Grid)lbr.Child).GetChildAt(0, 0);
+            //    if (oldCh != null)
+            //        ((Grid)lbr.Child).Remove(oldCh);
+            //    if (normalUser != null)
+            //        ((Grid)lbr.Child).Attach(normalUser, 0, 0, 1, 2);
+            //}
         }
 
         public void SetUserImages(Image? normal, Image? high)
@@ -229,9 +229,9 @@ namespace ProxChatClientGUICrossPlatform
             highUser = high;
             normalUser.ShowAll();
             highUser.ShowAll();
-            var oldCh = ((Grid)lbr.Child).GetChildAt(0, 0);
-            if (oldCh != null)
-                ((Grid)lbr.Child).Remove(oldCh);
+            //var oldCh = ((Grid)lbr.Child).GetChildAt(0, 0);
+            //if (oldCh != null)
+            //    ((Grid)lbr.Child).Remove(oldCh);
             if (normalUser != null)
                 ((Grid)lbr.Child).Attach(normalUser, 0, 0, 1, 2);
         }
