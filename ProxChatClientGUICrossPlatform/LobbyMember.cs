@@ -209,6 +209,7 @@ namespace ProxChatClientGUICrossPlatform
             usernameLabel.SetPadding(8, 0);
             usernameLabel.ModifyFont(Pango.FontDescription.FromString("monospace 12"));
 #pragma warning restore CS0612
+            usernameLabel.Vexpand = true;
             centerGrid.Attach(usernameLabel, 0, 1, 1, 1);
             usernameLabel.ShowAll();
             lbr.ShowAll();
