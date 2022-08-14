@@ -118,6 +118,10 @@ namespace ProxChatClientGUICrossPlatform
             //add mute button
             muteButton = new Button();
             muteButton.AlwaysShowImage = true;
+#pragma warning disable CS0612
+            muteButton.MarginLeft = 10;
+#pragma warning restore CS0612
+            muteButton.Vexpand = true;
             muteButton.SetSizeRequest(50, 50);
             muteButton.Clicked += (_, _) => 
             {
@@ -135,6 +139,9 @@ namespace ProxChatClientGUICrossPlatform
                 deafenButton = new Button();
                 deafenButton.AlwaysShowImage = true;
                 deafenButton.SetSizeRequest(50, 50);
+#pragma warning disable CS0612
+                deafenButton.MarginLeft = 10;
+#pragma warning restore CS0612
                 deafenButton.Clicked += (_, _) => 
                 {
                     lobbyMemberLogger.Info("Clicked deaf button, " + !Deaf);
@@ -151,10 +158,17 @@ namespace ProxChatClientGUICrossPlatform
                 //add percieved vol
                 volumePercieved = new ProgressBar();
                 centerGrid.Attach(volumePercieved, 0, 2, 1, 1);
+#pragma warning disable CS0612
+                volumePercieved.MarginRight = volumePercieved.MarginLeft = 12;
+#pragma warning restore CS0612
+                volumePercieved.Vexpand = true;
+                volumePercieved.Hexpand = true;
                 volumePercieved.ShowAll();
                 //add vol slider
                 volumeSlider = new Scale(Orientation.Horizontal, 0, 200, 1);
                 volumeSlider.Value = startSlider;
+                volumeSlider.Vexpand = true;
+                volumeSlider.Hexpand = true;
                 centerGrid.Attach(volumeSlider, 0, 0, 1, 1);
                 volumeCallback = vol;
                 volumeSlider.ChangeValue += (_, _) =>
@@ -166,6 +180,9 @@ namespace ProxChatClientGUICrossPlatform
                 volumeSlider.ShowAll();
                 //add direct button
                 directButton = new Button();
+#pragma warning disable CS0612
+                directButton.MarginRight = 10;
+#pragma warning restore CS0612
                 directButton.AlwaysShowImage = true;
                 directButton.SetSizeRequest(100, 100);
                 directButton.Image = directImage;
