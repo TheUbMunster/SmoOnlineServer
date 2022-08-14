@@ -287,22 +287,9 @@ assigned this volume):</property>
           </packing>
         </child>
         <child>
-          <object class="GtkButton" id="pushToTeamButton">
-            <property name="visible">True</property>
-            <property name="can-focus">True</property>
-            <property name="focus-on-click">False</property>
-            <property name="receives-default">True</property>
-          </object>
-          <packing>
-            <property name="left-attach">1</property>
-            <property name="top-attach">7</property>
-          </packing>
-        </child>
-        <child>
           <object class="GtkButton" id="pushToGlobalButton">
             <property name="visible">True</property>
             <property name="can-focus">True</property>
-            <property name="focus-on-click">False</property>
             <property name="receives-default">True</property>
           </object>
           <packing>
@@ -314,7 +301,6 @@ assigned this volume):</property>
           <object class="GtkButton" id="pushToActionButton">
             <property name="visible">True</property>
             <property name="can-focus">True</property>
-            <property name="focus-on-click">False</property>
             <property name="receives-default">True</property>
           </object>
           <packing>
@@ -326,12 +312,22 @@ assigned this volume):</property>
           <object class="GtkButton" id="toggleDeafenButton">
             <property name="visible">True</property>
             <property name="can-focus">True</property>
-            <property name="focus-on-click">False</property>
             <property name="receives-default">True</property>
           </object>
           <packing>
             <property name="left-attach">1</property>
             <property name="top-attach">10</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkButton" id="pushToTeamButton">
+            <property name="visible">True</property>
+            <property name="can-focus">True</property>
+            <property name="receives-default">True</property>
+          </object>
+          <packing>
+            <property name="left-attach">1</property>
+            <property name="top-attach">7</property>
           </packing>
         </child>
       </object>

@@ -111,7 +111,6 @@
         <child>
           <object class="GtkListBox" id="userListBox">
             <property name="visible">True</property>
-            <property name="sensitive">False</property>
             <property name="can-focus">False</property>
             <property name="activate-on-single-click">False</property>
           </object>

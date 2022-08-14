@@ -146,9 +146,10 @@ namespace ProxChatClientGUICrossPlatform
                 string filename = IOPath.Combine("logs", $"log_{launchTime.Month}-{launchTime.Day}-{launchTime.Year}--{launchTime.Hour}-{launchTime.Minute}-{launchTime.Second}.txt");
                 File.AppendAllText(filename, data);
             });
-#endregion
+            #endregion
 
-#region Populate UI Fields
+            #region Populate UI Fields
+            Icon = new Gdk.Pixbuf(File.ReadAllBytes(IOPath.Combine("Images", "icon.ico")));
             settingsButton = (Button)builder.GetObject("settingsButton");
             connectDisconnectButton = (Button)builder.GetObject("connectDisconnectButton");
             connectionStatusRTB = (TextView)builder.GetObject("connectionStatusRTB");

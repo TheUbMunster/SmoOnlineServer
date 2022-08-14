@@ -7,7 +7,6 @@
     <property name="title" translatable="yes">SMOOnline PVC Client</property>
     <property name="default-width">700</property>
     <property name="default-height">400</property>
-    <property name="icon">Images\icon.ico</property>
     <child>
       <!-- n-columns=3 n-rows=3 -->
       <object class="GtkGrid">

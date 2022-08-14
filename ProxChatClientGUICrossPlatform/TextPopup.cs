@@ -43,6 +43,7 @@ namespace ProxChatClientGUICrossPlatform
             dataTextBox = ((Entry)builder.GetObject("dataTextBox"));
             cancelButton = ((Button)builder.GetObject("cancelButton"));
             confirmButton = ((Button)builder.GetObject("confirmButton"));
+            Icon = new Gdk.Pixbuf(System.IO.File.ReadAllBytes(System.IO.Path.Combine("Images", "icon.ico")));
 
             dataTextBox.Changed += dataTextBox_TextChanged;
             cancelButton.Clicked += cancelButton_Click;

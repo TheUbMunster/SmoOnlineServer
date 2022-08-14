@@ -84,6 +84,27 @@ namespace ProxChatClientGUICrossPlatform
             toggleDeafenButton = (Button)builder.GetObject("toggleDeafenButton");
             percievedVolumeCheckBox = (CheckButton)builder.GetObject("percievedVolumeCheckBox");
             speakModeComboBox = (ComboBox)builder.GetObject("speakModeComboBox");
+            Icon = new Gdk.Pixbuf(System.IO.File.ReadAllBytes(System.IO.Path.Combine("Images", "icon.ico")));
+            #endregion
+
+            #region Platform switching for keybinds
+            switch (Environment.OSVersion.Platform)
+            {
+                case PlatformID.Win32NT:
+                    //do nothing because it's fine
+                    break;
+                default:
+                case PlatformID.Unix:
+                case PlatformID.Other:
+                    //disable keybind buttons because it doesn't work on non-windows for now
+                    pushToActionButton.Sensitive = false;
+                    pushToTeamButton.Sensitive = false;
+                    pushToGlobalButton.Sensitive = false;
+                    toggleDeafenButton.Sensitive = false;
+                    toggleDeafenButton.TooltipText = pushToGlobalButton.TooltipText = toggleDeafenButton.TooltipText = 
+                    pushToActionButton.TooltipText = "Keybinds are currently only supported on windows.";
+                    break;
+            }
             #endregion
 
             //fill fields with values
