@@ -13,19 +13,19 @@ namespace ProxChatClientGUICrossPlatform
     {
         private static Shared.Logger lobbyMemberLogger = new Shared.Logger("LobbyMemberUI");
 
-        [UI] private readonly Image directImage = ProxChat.ResizeImage(IOPath.Join("Images", "direct.png"), 100, 100);
-        [UI] private readonly Image headphonesImage = ProxChat.ResizeImage(IOPath.Join("Images", "headphones.png"), 50, 50);
-        [UI] private readonly Image headphonesCrossedImage = ProxChat.ResizeImage(IOPath.Join("Images", "headphones-crossed.png"), 50, 50);
-        [UI] private readonly Image micImage = ProxChat.ResizeImage(IOPath.Join("Images", "mic.png"), 50, 50);
-        [UI] private readonly Image micCrossedImage = ProxChat.ResizeImage(IOPath.Join("Images", "mic-crossed.png"), 50, 50);
+        [UI] private readonly Image directImage = ProxChat.ResizeImage(IOPath.Join(".", "Images", "direct.png"), 100, 100);
+        [UI] private readonly Image headphonesImage = ProxChat.ResizeImage(IOPath.Join(".", "Images", "headphones.png"), 50, 50);
+        [UI] private readonly Image headphonesCrossedImage = ProxChat.ResizeImage(IOPath.Join(".", "Images", "headphones-crossed.png"), 50, 50);
+        [UI] private readonly Image micImage = ProxChat.ResizeImage(IOPath.Join(".", "Images", "mic.png"), 50, 50);
+        [UI] private readonly Image micCrossedImage = ProxChat.ResizeImage(IOPath.Join(".", "Images", "mic-crossed.png"), 50, 50);
 
         private Action<bool>? muteCallback; //true mute, false unmute
         private Action<bool>? deafCallback; //true deaf, false undeaf
         private Action<bool>? directCallback;
         private Action<byte>? volumeCallback;
 
-        private Image? normalUser;
-        private Image? highUser;
+        private Gdk.Pixbuf? normalUser;
+        private Gdk.Pixbuf? highUser;
 
         private bool muted = false;
         public bool Muted
@@ -105,6 +105,7 @@ namespace ProxChatClientGUICrossPlatform
         [UI] private readonly Label usernameLabel;
         [UI] private readonly ProgressBar volumePercieved = null;
         [UI] private readonly Scale volumeSlider = null;
+        [UI] private readonly Image displayUserImage = null;
         public LobbyMember(bool isSelf, Action<bool>? mute, Action<bool>? deaf, Action<bool>? direct, Action<byte>? vol, byte startSlider)
         {
             lbr = new ListBoxRow();
@@ -212,6 +213,8 @@ namespace ProxChatClientGUICrossPlatform
             usernameLabel.Vexpand = true;
             centerGrid.Attach(usernameLabel, 0, 1, 1, 1);
             usernameLabel.ShowAll();
+            displayUserImage = new Image();
+            mainGrid.Attach(displayUserImage, 0, 0, 1, 2);
             lbr.ShowAll();
         }
 
@@ -219,45 +222,30 @@ namespace ProxChatClientGUICrossPlatform
         #region UI
         public void SetUserTalking(bool talking)
         {
-            //if (talking)
-            //{
-            //    var oldCh = ((Grid)lbr.Child).GetChildAt(0, 0);
-            //    if (oldCh != null)
-            //        ((Grid)lbr.Child).Remove(oldCh);
-            //    if (highUser != null)
-            //        ((Grid)lbr.Child).Attach(highUser, 0, 0, 1, 2);
-            //}
-            //else
-            //{
-            //    var oldCh = ((Grid)lbr.Child).GetChildAt(0, 0);
-            //    if (oldCh != null)
-            //        ((Grid)lbr.Child).Remove(oldCh);
-            //    if (normalUser != null)
-            //        ((Grid)lbr.Child).Attach(normalUser, 0, 0, 1, 2);
-            //}
+            if (talking)
+            {
+                displayUserImage.Pixbuf = highUser;
+            }
+            else
+            {
+                displayUserImage.Pixbuf = normalUser;
+            }
         }
 
-        public void SetUserImages(Image? normal, Image? high)
+        public void SetUserImages(Gdk.Pixbuf? normal, Gdk.Pixbuf? high)
         {
-            if (normal != null)
-                ProxChat.ResizeImage(ref normal, 100, 100);
-            if (high != null)
-                ProxChat.ResizeImage(ref high, 100, 100);
+            normal = normal.ScaleSimple(100, 100, Gdk.InterpType.Bilinear);
+            high = high.ScaleSimple(100, 100, Gdk.InterpType.Bilinear);
             normalUser = normal;
             highUser = high;
-            normalUser.ShowAll();
-            highUser.ShowAll();
-            //var oldCh = ((Grid)lbr.Child).GetChildAt(0, 0);
-            //if (oldCh != null)
-            //    ((Grid)lbr.Child).Remove(oldCh);
-            if (normalUser != null)
-                ((Grid)lbr.Child).Attach(normalUser, 0, 0, 1, 2);
         }
 
         public void DisposeUserImages()
         {
-            normalUser.Destroy();
-            highUser.Destroy();
+            normalUser.Dispose();
+            normalUser = null;
+            highUser.Dispose();
+            highUser = null;
         }
 
         public void SetUserInfo(string username, long userId)
@@ -266,47 +254,16 @@ namespace ProxChatClientGUICrossPlatform
             usernameLabel.Text = username;
         }
 
-        //public void RemoveSelfUI()
-        //{
-        //    Controls.Remove(directSpeakButton);
-        //    Controls.Remove(volumePercieved);
-        //    Controls.Remove(volumeSlider);
-        //    directSpeakButton.Dispose();
-        //    volumePercieved.Dispose();
-        //    volumeSlider.Dispose();
-        //    directCallback = null;
-        //    volumeCallback = null;
-        //}
-
-        //public void RemoveOtherUI()
-        //{
-        //    Controls.Remove(deafenButton);
-        //    deafenButton.Dispose();
-        //    deafCallback = null;
-        //}
-
         public void SetPercievedVolumeLevel(float percent)
         {
-            //int val = (int)(percent * 100f);
-            //val = val < 0 ? 0 : (val > 100 ? 100 : val);
             if (volumePercieved != null)
                 volumePercieved.Fraction = percent;
-            //if (!volumePercieved.IsDisposed && !volumePercieved.Disposing)
-            //{
-            //    //strange hack to get rid of the glow effect.
-            //    volumePercieved.Minimum = val;
-            //    volumePercieved.Value = volumePercieved.Minimum;
-            //    volumePercieved.Minimum = 0;
-            //    //volumePercieved.Value = val; //"correct" way
-            //}
         }
 
         public void SetPercievedVolumeVisible(bool visible)
         {
             if (volumePercieved != null)
                 volumePercieved.Visible = visible;
-            //if (volumePercieved != null && !volumePercieved.IsDisposed && !volumePercieved.Disposing)
-            //    volumePercieved.Visible = visible;
         }
 
         public void SetVolumeSlider(byte level)

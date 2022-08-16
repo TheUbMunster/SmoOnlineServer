@@ -105,11 +105,11 @@ namespace ProxChatClientGUICrossPlatform
 
         public static ProxChat Instance = null!;
 
-        [UI] private readonly Image settingsGearImage = ResizeImage(IOPath.Join("Images", "Gear.png"), 75, 75);
-        [UI] private readonly Image connectImage = ResizeImage(IOPath.Join("Images", "connect.png"), 75, 75);
-        [UI] private readonly Image disconnectImage = ResizeImage(IOPath.Join("Images", "disconnect.png"), 75, 75);
-        [UI] private readonly Image teamImage = ResizeImage(IOPath.Join("Images", "team.png"), 75, 125);
-        [UI] private readonly Image globalImage = ResizeImage(IOPath.Join("Images", "global.png"), 75, 125);
+        [UI] private readonly Image settingsGearImage = ResizeImage(IOPath.Join(".", "Images", "Gear.png"), 75, 75);
+        [UI] private readonly Image connectImage = ResizeImage(IOPath.Join(".", "Images", "connect.png"), 75, 75);
+        [UI] private readonly Image disconnectImage = ResizeImage(IOPath.Join(".", "Images", "disconnect.png"), 75, 75);
+        [UI] private readonly Image teamImage = ResizeImage(IOPath.Join(".", "Images", "team.png"), 75, 125);
+        [UI] private readonly Image globalImage = ResizeImage(IOPath.Join(".", "Images", "global.png"), 75, 125);
 
         [UI] private Button settingsButton;
         [UI] private Button connectDisconnectButton;
@@ -603,11 +603,9 @@ namespace ProxChatClientGUICrossPlatform
                 {
                     Image normal;
                     Gdk.Pixbuf pbn = new Gdk.Pixbuf(imageData, true, 8, (int)width, (int)height, (int)width * 4);
-                    normal = new Image(pbn);
 
                     Image high;
                     Gdk.Pixbuf pbh = new Gdk.Pixbuf(highlightedImageData, true, 8, (int)width, (int)height, (int)width * 4);
-                    high = new Image(pbh);
                     //Bitmap normal;
                     //{
                     //    normal = new Bitmap((int)width, (int)height, PixelFormat.Format32bppArgb);
@@ -625,7 +623,7 @@ namespace ProxChatClientGUICrossPlatform
                     //    high.UnlockBits(bData);
                     //}
 
-                    lm.SetUserImages(normal, high);
+                    lm.SetUserImages(pbn, pbh);
                 }
                 else
                 {
