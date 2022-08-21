@@ -88,14 +88,12 @@ server.ClientJoined += (c, _) => {
     }
 };
 
-async Task ClientSyncShineBag(Client client)
-{
-    try
-    {
-        if ((bool?)client.Metadata["speedrun"] ?? false) return;
-        ConcurrentBag<int> clientBag = (ConcurrentBag<int>)(client.Metadata["shineSync"] ??= new ConcurrentBag<int>());
-        foreach (int shine in shineBag.Except(clientBag).ToArray())
-        {
+async Task ClientSyncShineBag(Client client) {
+    if (!Settings.Instance.Shines.Enabled) return;
+    try {
+        if ((bool?) client.Metadata["speedrun"] ?? false) return;
+        ConcurrentBag<int> clientBag = (ConcurrentBag<int>) (client.Metadata["shineSync"] ??= new ConcurrentBag<int>());
+        foreach (int shine in shineBag.Except(clientBag).ToArray()) {
             clientBag.Add(shine);
             await client.Send(new ShinePacket
             {
@@ -507,7 +505,7 @@ CommandHandler.RegisterCommand("rejoin", args => {
     var res = MultiUserCommandHelper(args);
 
     StringBuilder sb = new StringBuilder();
-    sb.Append(res.toActUpon.Count > 0 ? "Banned: " + string.Join(", ", res.toActUpon.Select(x => $"\"{x.Name}\"")) : "");
+    sb.Append(res.toActUpon.Count > 0 ? "Rejoined: " + string.Join(", ", res.toActUpon.Select(x => $"\"{x.Name}\"")) : "");
     sb.Append(res.failToFind.Count > 0 ? "\nFailed to find matches for: " + string.Join(", ", res.failToFind.Select(x => $"\"{x.ToLower()}\"")) : "");
     if (res.ambig.Count > 0) {
         res.ambig.ForEach(x => {
@@ -530,7 +528,7 @@ CommandHandler.RegisterCommand("crash", args => {
     var res = MultiUserCommandHelper(args);
 
     StringBuilder sb = new StringBuilder();
-    sb.Append(res.toActUpon.Count > 0 ? "Banned: " + string.Join(", ", res.toActUpon.Select(x => $"\"{x.Name}\"")) : "");
+    sb.Append(res.toActUpon.Count > 0 ? "Crashed: " + string.Join(", ", res.toActUpon.Select(x => $"\"{x.Name}\"")) : "");
     sb.Append(res.failToFind.Count > 0 ? "\nFailed to find matches for: " + string.Join(", ", res.failToFind.Select(x => $"\"{x.ToLower()}\"")) : "");
     if (res.ambig.Count > 0) {
         res.ambig.ForEach(x => {
@@ -859,9 +857,8 @@ CommandHandler.RegisterCommand("flip", args =>
     }
 });
 
-CommandHandler.RegisterCommand("shine", args =>
-{
-    const string optionUsage = "Valid options: list, clear, sync, send";
+CommandHandler.RegisterCommand("shine", args => {
+    const string optionUsage = "Valid options: list, clear, sync, send, set";
     if (args.Length < 1)
         return optionUsage;
     switch (args[0])
@@ -894,6 +891,15 @@ CommandHandler.RegisterCommand("shine", args =>
             }
 
             return optionUsage;
+        case "set" when args.Length == 2: {
+            if (bool.TryParse(args[1], out bool result)) {
+                Settings.Instance.Shines.Enabled = result;
+                Settings.SaveSettings();
+                return result ? "Enabled shine sync" : "Disabled shine sync";
+            }
+
+            return optionUsage;
+        }
         default:
             return optionUsage;
     }
