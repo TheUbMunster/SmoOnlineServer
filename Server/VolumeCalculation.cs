@@ -1,4 +1,4 @@
-﻿#define MEGA_VERBOSE
+﻿//#define MEGA_VERBOSE
 
 using System;
 using System.Collections.Generic;
@@ -31,7 +31,7 @@ namespace Server
         private class UserVolInfo
         {
             /// <summary>
-            /// Since the volume between users is (usually) the same e.g. player1 <-> player2 distance
+            /// Since the volume between users is (usually, not always) the same e.g. player1 <-> player2 distance
             /// is the same as the distance player2 <-> player1, this is a reference to the other volume object
             /// </summary>
             public UserVolInfo Pair { get; set; } = null!;
@@ -50,6 +50,9 @@ namespace Server
             public float? LastSetVolume { get; set; } = null; //if null, this client has not yet had a request to be sent a volume
         }
 
+        /// <summary>
+        /// Represents the usage of a walkie-talkie from a user, functioning as a "keep-alive" signal.
+        /// </summary>
         private class WalkieTicker
         {
             public PVCWalkieTalkiePacket Packet { get; set; } = null!;
@@ -77,7 +80,7 @@ namespace Server
 
         private bool voiceProxEnabled = false;
 
-        public VolumeCalculation() 
+        public VolumeCalculation()
         {
             CommandHandler.RegisterCommand("listdiscordassocs", args =>
             {
@@ -99,7 +102,7 @@ namespace Server
                 {
                     return "Usage: listigteams (no arguments.)";
                 }
-                return string.Join("\n", igToTeam.Select(x => $"\tIG: {x.Key}, Team:{x.Value}"));
+                return string.Join("\n", igToTeam.Select(x => $"\tIG: {x.Key}, Team: {x.Value}"));
             });
 
             CommandHandler.RegisterCommand("listigstage", args =>
@@ -108,7 +111,7 @@ namespace Server
                 {
                     return "Usage: listigstage (no arguments.)";
                 }
-                return string.Join("\n", igToStage.Select(x => $"\tIG: {x.Key}, Stage:{x.Value}"));
+                return string.Join("\n", igToStage.Select(x => $"\tIG: {x.Key}, Stage: {x.Value}"));
             });
         }
 
@@ -313,21 +316,6 @@ namespace Server
                 igs.Add(igPlayer);
                 if (!igToIgsToVols.ContainsKey(igPlayer))
                     igToIgsToVols[igPlayer] = new Dictionary<string, UserVolInfo>();
-                //check if anyone is broadcasting in the walkie talkie dict
-                //foreach (string ig in igs)
-                //{
-                //    if (ig == igPlayer)
-                //        continue;
-                //    //ig <-> igPlayer
-                //    UserVolInfo volInfo = null!;
-                //    if (!igToIgsToVols.ContainsKey(ig))
-                //        igToIgsToVols[ig] = new Dictionary<string, UserVolInfo>();
-                //    if (!igToIgsToVols[ig].ContainsKey(igPlayer))
-                //        volInfo = igToIgsToVols[igPlayer][ig] = igToIgsToVols[ig][igPlayer] = new UserVolInfo();
-                //    volInfo ??= igToIgsToVols[igPlayer][ig];
-
-                //    //actual calculation
-                //}
             }
         }
 
@@ -357,7 +345,7 @@ namespace Server
                                         SystemTickOnLastCalculation = oldInfo
                                     };
                                 }
-                                //else that one is outdated
+                                //else that one is outdated (udp does not guarantee order)
                             }
                             else
                             {
@@ -390,21 +378,21 @@ namespace Server
             lock (lockKey)
             {
                 voiceProxEnabled = enabled;
-                foreach (string ig1 in igs)
+                if (!enabled)
                 {
-                    foreach (string ig2 in igs)
+                    foreach (string ig1 in igs)
                     {
-                        if (ig1 == ig2)
-                            continue;
-                        var info = igToIgsToVols[ig1][ig2];
-                        if (!enabled)
+                        foreach (string ig2 in igs)
                         {
+                            if (ig1 == ig2)
+                                continue; //don't update self <-> self volume.
+                            var info = igToIgsToVols[ig1][ig2];
                             //set all to send volumes to 1
                             info.ToSendVolume = 1f;
                         }
-                        //else normal behavior will resume with voiceproxenabled == false
                     }
                 }
+                //else normal behavior will resume with voiceproxenabled == true
             }
         }
         #endregion
@@ -594,57 +582,6 @@ namespace Server
                 else return null;
             }
         }
-
-        //TODO: is this necessary?
-        /// <summary>
-        /// Returns a packet with the most up-to-date volume information for a user.
-        /// </summary>
-        /// <returns>Null if the requisite data isn't present in the internal info tables, the packet otherwise</returns>
-        //public PVCMultiDataPacket? GetCorrectVolumePacketForUser(string discord)
-        //{
-        //    lock (lockKey)
-        //    {
-        //        if (discordToIg.ContainsKey(discord))
-        //        {
-        //            Dictionary<string, PVCMultiDataPacket.VolTick> vols = new Dictionary<string, PVCMultiDataPacket.VolTick>();
-        //            PVCMultiDataPacket packet = new PVCMultiDataPacket() { Volumes = vols };
-        //            foreach (var kvp in igToIgsToVols[discordToIg[discord]]) //ToDictionary doesn't work because it doesn't conditionally exclude entires
-        //            {
-        //                if (igToDiscord.ContainsKey(kvp.Key))
-        //                {
-        //                    if (kvp.Value.ToSendVolume != null)
-        //                    {
-        //                        vols.Add(igToDiscord[kvp.Key], new PVCMultiDataPacket.VolTick()
-        //                        {
-        //                            Ticker = kvp.Value.Ticker,
-        //                            Volume = kvp.Value.ToSendVolume
-        //                        });
-        //                    }
-        //                    else
-        //                    {
-        //                        //since tosend is null, just use the running
-        //                        vols.Add(igToDiscord[kvp.Key], new PVCMultiDataPacket.VolTick()
-        //                        {
-        //                            Ticker = kvp.Value.Ticker++,
-        //                            Volume = kvp.Value.RunningVolume
-        //                        });
-        //                    }
-        //                }
-        //                //else that discord user isn't connected, shouldn't include their volume
-        //            }
-        //            foreach (string ig1 in igs)
-        //            {
-        //                foreach (string ig2 in igs)
-        //                {
-        //                    igToIgsToVols[ig1][ig2].LastSetVolume = igToIgsToVols[ig1][ig2].ToSendVolume;
-        //                    igToIgsToVols[ig1][ig2].ToSendVolume = null;
-        //                }
-        //            }
-        //            return packet;
-        //        }
-        //        else return null;
-        //    }
-        //}
         #endregion
 
         #region Helpers

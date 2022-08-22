@@ -427,7 +427,7 @@ namespace ProxChatClientGUICrossPlatform
             messageQueue.Enqueue(action);
         }
 
-#region NetEvent Handlers
+        #region NetEvent Handlers
         void HandleConnectEvent(ref Event netEvent)
         {
             modelLogger.Info("Client successfully connected to server.");

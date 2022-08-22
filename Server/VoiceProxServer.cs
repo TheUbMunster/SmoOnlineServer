@@ -16,6 +16,8 @@ namespace Server
 {
     /// <summary>
     /// <b>Author: TheUbMunster</b><br></br><br></br>
+    /// 
+    /// The UDP server that communicates volume data, etc to all voice proximity clients.
     /// </summary>
     class VoiceProxServer
     {
