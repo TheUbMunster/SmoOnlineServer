@@ -38,6 +38,7 @@ public class DiscordBot {
     private Settings.DiscordTable Config => Settings.Instance.Discord;
     private string Prefix => Config.Prefix;
     private readonly Logger Logger = new Logger("Discord");
+    private DiscordChannel? CommandChannel;
     private DiscordChannel? LogChannel;
     private bool Reconnecting;
 
@@ -54,6 +55,10 @@ public class DiscordBot {
             Task.Run(Reconnect);
             return "Restarting Discord bot";
         });
+        if (Config.CommandChannel == null)
+            Logger.Warn("You probably should set your CommandChannel in settings.json");
+        if (Config.LogChannel == null)
+            Logger.Warn("You probably should set your LogChannel in settings.json");
         if (Config.Token == null)
         {
             Logger.Warn("No discord bot token is set in the server settings! You cannot use voice proximity until you assign a bot token!");
@@ -80,11 +85,15 @@ public class DiscordBot {
         try {
             if (DiscordClient == null || Token != Config.Token)
                 await Run();
+            //CommandChannel not currently used
+            if (Config.CommandChannel != null)
+                CommandChannel = await (DiscordClient?.GetChannelAsync(ulong.Parse(Config.CommandChannel)) ??
+                                    throw new NullReferenceException("Discord client not setup yet!"));
             if (Config.LogChannel != null)
                 LogChannel = await (DiscordClient?.GetChannelAsync(ulong.Parse(Config.LogChannel)) ??
                                     throw new NullReferenceException("Discord client not setup yet!"));
         } catch (Exception e) {
-            Logger.Error($"Failed to get log channel \"{Config.LogChannel}\"");
+            Logger.Error($"Failed to get log channel \"{Config.CommandChannel}\"");
             Logger.Error(e);
         }
     }
@@ -266,9 +275,17 @@ public class DiscordBot {
             Logger.Info(
                 $"Discord bot logged in as {DiscordClient.CurrentUser.Username}#{DiscordClient.CurrentUser.Discriminator}");
             Reconnecting = false;
-            string mentionPrefix = $"{DiscordClient.CurrentUser.Mention} ";
+            string mentionPrefix = $"{DiscordClient.CurrentUser.Mention}";
             DiscordClient.MessageCreated += async (_, args) => {
-                if (args.Author.IsCurrent) return;
+                if (args.Author.IsCurrent) return; //dont respond to commands from ourselves (prevent "sql-injection" esq attacks)
+                //prevent commands via dm and non-public channels
+                if (CommandChannel == null) {
+                    if (args.Channel is DiscordDmChannel)
+                        return; //no dm'ing the bot allowed!
+                }
+                else if (args.Channel.Id != CommandChannel.Id && (LogChannel != null && args.Channel.Id != LogChannel.Id))
+                    return;
+                //run command
                 try {
                     DiscordMessage msg = args.Message;
                     string? resp = null;
@@ -280,7 +297,7 @@ public class DiscordBot {
                         resp = string.Join('\n', CommandHandler.GetResult(msg.Content[Prefix.Length..]).ReturnStrings);
                     } else if (msg.Content.StartsWith(mentionPrefix)) {
                         await msg.Channel.TriggerTypingAsync();
-                        resp = string.Join('\n', CommandHandler.GetResult(msg.Content[mentionPrefix.Length..]).ReturnStrings);
+                        resp = string.Join('\n', CommandHandler.GetResult(msg.Content[mentionPrefix.Length..].TrimStart()).ReturnStrings);
                     }
                     if (resp != null)
                     {
