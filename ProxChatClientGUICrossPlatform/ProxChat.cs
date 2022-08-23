@@ -136,7 +136,7 @@ namespace ProxChatClientGUICrossPlatform
             builder.Autoconnect(this);
             DeleteEvent += Window_DeleteEvent;
 
-#region Logger Setup
+            #region Logger Setup
             DateTime launchTime = DateTime.Now;
             Logger.AddLogHandler((source, level, text, _) =>
             {
@@ -454,7 +454,7 @@ namespace ProxChatClientGUICrossPlatform
             });
         }
 
-#region Set UI
+        #region Set UI
         public void SetConnectionStatus(bool isConnected)
         {
             connectionStatusRTB.Buffer.Text = "";
