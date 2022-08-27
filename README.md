@@ -79,11 +79,12 @@ to the server, click the "green phone" button in the top right to "join the call
 For troubleshooting, see the [release](https://github.com/TheUbMunster/SmoOnlineServer/releases) notes.
 
 #### Client settings
-ServerPort: The port that proximity voice chat connects to in the server, default: 12000  
+Application ID: The discord app id, (this is required), to get this, run "appid" on the server, default: ""
+ServerPort: The port that proximity voice chat connects to in the server (required), default: 12000  
 ServerHost: The IP/Hostname of the server, default: null  
 IngameName: Your in-game username, default: null  
 DefaultVolume: The volume at which newly connected users who do not have a volume saved in preferences will be set to, default: 50  
-VolumePrefs: A dictionary of discord usernames to volume preferences (as you move people's volume sliders around, the client will remember and save them here), default: {}  
+VolumePrefs (Not in GUI): A dictionary of discord usernames to volume preferences (as you move people's volume sliders around, the client will remember and save them here), default: {}  
 SpeakMode: "Always On"/"Push-To-Talk"/"Push-To-Mute", default: "Always On"  
 PushToTeam: The keybind for the team communication button, default: null (As of release v1.0.0-alpha, this is not yet implemented)  
 PushToGlobal: The keybind for the global communication button, default: null (As of release v1.0.0-alpha, this is not yet implemented)  
