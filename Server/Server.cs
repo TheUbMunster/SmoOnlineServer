@@ -268,7 +268,7 @@ public class Server {
 
                     Logger.Info($"Client {client.Name} ({client.Id}/{remote}) connected.");
                 } else if (header.Id != client.Id && client.Id != Guid.Empty) {
-                    throw new Exception($"Client {client.Name} sent packet {header.Type} with invalid client id {header.Id} instead of {client.Id}");
+                    throw new Exception($"Client {client.Name} sent packet with invalid client id {header.Id} instead of {client.Id}");
                 }
 
                 try {
