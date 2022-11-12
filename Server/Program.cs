@@ -19,7 +19,6 @@ HashSet<int> shineBag = new HashSet<int>();
 
 CancellationTokenSource cts = new CancellationTokenSource();
 bool restartRequested = false;
-Task listenTask = server.Listen(cts.Token);
 Logger consoleLogger = new Logger("Console");
 await DiscordBot.Instance.Run();
 {
@@ -58,6 +57,10 @@ async Task LoadShines()
         var loadedShines = JsonSerializer.Deserialize<HashSet<int>>(shineJson);
 
         if (loadedShines is not null) shineBag = loadedShines;
+    }
+    catch (FileNotFoundException)
+    {
+        // Ignore
     }
     catch (Exception ex)
     {
@@ -126,53 +129,32 @@ timer.Start();
 
 float MarioSize(bool is2d) => is2d ? 180 : 160;
 
-server.PacketHandler = (c, p) =>
-{
-    switch (p)
-    {
-        case GamePacket gamePacket:
-            {
-                c.Logger.Info($"Got game packet {gamePacket.Stage}->{gamePacket.ScenarioNum}");
-                c.Metadata["scenario"] = gamePacket.ScenarioNum;
-                c.Metadata["2d"] = gamePacket.Is2d;
-                c.Metadata["lastGamePacket"] = gamePacket;
-                VoiceProxServer.Instance.OnPlayerUpdate(c.Name, gamePacket.Stage);
-                switch (gamePacket.Stage)
-                {
-                    case "CapWorldHomeStage" when gamePacket.ScenarioNum == 0:
-                        c.Metadata["speedrun"] = true;
-                        ((ConcurrentBag<int>)(c.Metadata["shineSync"] ??= new ConcurrentBag<int>())).Clear();
-                        shineBag.Clear();
+server.PacketHandler = (c, p) => {
+    switch (p) {
+        case GamePacket gamePacket: {
+            c.Logger.Info($"Got game packet {gamePacket.Stage}->{gamePacket.ScenarioNum}");
+            c.Metadata["scenario"] = gamePacket.ScenarioNum;
+            c.Metadata["2d"] = gamePacket.Is2d;
+            c.Metadata["lastGamePacket"] = gamePacket;
+            VoiceProxServer.Instance.OnPlayerUpdate(c.Name, gamePacket.Stage);
+            switch (gamePacket.Stage) {
+                case "CapWorldHomeStage" when gamePacket.ScenarioNum == 0:
+                    c.Metadata["speedrun"] = true;
+                    ((ConcurrentBag<int>) (c.Metadata["shineSync"] ??= new ConcurrentBag<int>())).Clear();
+                    shineBag.Clear();
+                    c.Logger.Info("Entered Cap on new save, preventing moon sync until Cascade");
+                    break;
+                case "WaterfallWorldHomeStage":
+                    bool wasSpeedrun = (bool) c.Metadata["speedrun"]!;
+                    c.Metadata["speedrun"] = false;
+                    if (wasSpeedrun)
                         Task.Run(async () => {
-                            await PersistShines();
+                            c.Logger.Info("Entered Cascade with moon sync disabled, enabling moon sync");
+                            await Task.Delay(15000);
+                            await ClientSyncShineBag(c);
                         });
-                        c.Logger.Info("Entered Cap on new save, preventing moon sync until Cascade");
-                        break;
-                    case "WaterfallWorldHomeStage":
-                        if (c.Metadata.ContainsKey("speedrun"))
-                        {
-                            c.Metadata["speedrun"] = false;
-                        }
-                        bool wasSpeedrun;
-                        if (c.Metadata.ContainsKey("speedrun"))
-                        {
-                            wasSpeedrun = (bool)c.Metadata["speedrun"]!; //this threw keynotpresent under some circumstance on a non 100% file
-                        }
-                        else
-                        {
-                            c.Metadata["speedrun"] = wasSpeedrun = false;
-                        }
-
-                        c.Metadata["speedrun"] = false;
-                        if (wasSpeedrun)
-                            Task.Run(async () =>
-                            {
-                                c.Logger.Info("Entered Cascade with moon sync disabled, enabling moon sync");
-                                await Task.Delay(15000);
-                                await ClientSyncShineBag(c);
-                            });
-                        break;
-                }
+                    break;
+            }
 
                 if (Settings.Instance.Scenario.MergeEnabled)
                 {
@@ -187,23 +169,21 @@ server.PacketHandler = (c, p) =>
                     return false;
                 }
 
-                break;
-            }
-        case TagPacket tagPacket:
-            {
-                {
-                    if ((tagPacket.UpdateType & TagPacket.TagUpdate.State) != 0)
-                    { 
-                        c.Metadata["seeking"] = tagPacket.IsIt;
-                        VoiceProxServer.Instance.OnPlayerUpdate(c.Name, 
-                            tagPacket.IsIt ? VolumeCalculation.Team.Seekers : VolumeCalculation.Team.Hiders);
-                    }
-                    if ((tagPacket.UpdateType & TagPacket.TagUpdate.Time) != 0)
-                        c.Metadata["time"] = new Time(tagPacket.Minutes, tagPacket.Seconds, DateTime.Now);
-                }
-                break;
-            }
-        case CostumePacket:
+            break;
+        }
+
+        case TagPacket tagPacket: {
+            if ((tagPacket.UpdateType & TagPacket.TagUpdate.State) != 0) 
+                c.Metadata["seeking"] = tagPacket.IsIt;
+            VoiceProxServer.Instance.OnPlayerUpdate(c.Name, tagPacket.IsIt ? VolumeCalculation.Team.Seekers : VolumeCalculation.Team.Hiders);
+            if ((tagPacket.UpdateType & TagPacket.TagUpdate.Time) != 0)
+                c.Metadata["time"] = new Time(tagPacket.Minutes, tagPacket.Seconds, DateTime.Now);
+            break;
+        }
+
+        case CostumePacket costumePacket:
+            c.Logger.Info($"Got costume packet: {costumePacket.BodyName}, {costumePacket.CapName}");
+            c.CurrentCostume = costumePacket;
 #pragma warning disable CS4014
             ClientSyncShineBag(c); //no point logging since entire def has try/catch
 #pragma warning restore CS4014
@@ -266,7 +246,7 @@ server.PacketHandler = (c, p) =>
 
     }
 
-    return true;
+    return true; // Broadcast packet to all other clients
 };
 
 #region Command registry
@@ -867,6 +847,10 @@ CommandHandler.RegisterCommand("shine", args => {
             return $"Shines: {string.Join(", ", shineBag)}";
         case "clear" when args.Length == 1:
             shineBag.Clear();
+            Task.Run(async () => {
+                await PersistShines();
+            });
+
             foreach (ConcurrentBag<int> playerBag in server.Clients.Select(serverClient =>
                 (ConcurrentBag<int>)serverClient.Metadata["shineSync"]!)) playerBag?.Clear();
 
@@ -969,7 +953,8 @@ Task.Run(() => {
 #pragma warning restore CS4014
 #endregion
 
-await listenTask;
+await server.Listen(cts.Token);
+
 if (restartRequested) //need to do this here because this needs to happen after the listener closes, and there isn't an
                       //easy way to sync in the restartserver command without it exiting Main()
 {
