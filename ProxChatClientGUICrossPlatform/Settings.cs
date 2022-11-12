@@ -61,7 +61,6 @@ public class Settings
         }
     }
 
-    public long? DiscordAppID { get; set; }
     public ushort? ServerPort { get; set; } = 12000;
     public string? ServerHost { get; set; }
     public string? IngameName { get; set; }

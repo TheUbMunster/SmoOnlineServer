@@ -33,6 +33,7 @@ public class DiscordBot {
 
     public static DiscordBot Instance { get; private set; }
 
+    public ulong? BotId { get => DiscordClient?.CurrentUser.Id; }
     private DiscordClient? DiscordClient;
     private string? Token;
     private Settings.DiscordTable Config => Settings.Instance.Discord;
@@ -163,7 +164,7 @@ public class DiscordBot {
             }
             if (Settings.Instance.Discord.AppID == null)
             {
-                Settings.Instance.Discord.AppID = (long?)DiscordClient?.CurrentUser.Id;
+                Settings.Instance.Discord.AppID = DiscordClient?.CurrentUser.Id;
                 Logger.Warn("The AppID was not set in settings, attempting to glean this information from the bot.");
                 if (Settings.Instance.Discord.AppID != null)
                 {

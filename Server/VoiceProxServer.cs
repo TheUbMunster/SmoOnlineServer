@@ -596,7 +596,8 @@ namespace Server
                                         SendPacket(new PVCLobbyPacket()
                                         {
                                             LobbyId = lobbyInfo.Value.id,
-                                            Secret = Settings.Instance.Discord.AutoSendPVCPassword ? lobbyInfo.Value.secret : null
+                                            Secret = Settings.Instance.Discord.AutoSendPVCPassword ? lobbyInfo.Value.secret : null,
+                                            AppID = Settings.Instance.Discord.AppID ?? DiscordBot.Instance.BotId ?? 0UL
                                         }, p);
                                     });
                                 }
@@ -614,6 +615,16 @@ namespace Server
                                 AddMessage(() =>
                                 {
                                     SendPacket(new PVCErrorPacket() { ErrorMessage = "Why are you sending the server a PVCLobbyPacket?" }, p);
+                                });
+                            }
+                            break;
+                        case PVCAppIdPacket appIdPacket:
+                            {
+                                //the server should never receive an app id packet
+                                Peer p = netEvent.Peer;
+                                AddMessage(() =>
+                                {
+                                    SendPacket(new PVCErrorPacket() { ErrorMessage = "Why are you sending the server a PVCAppIdPacket?" }, p);
                                 });
                             }
                             break;

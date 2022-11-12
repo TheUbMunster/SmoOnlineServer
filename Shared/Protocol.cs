@@ -12,19 +12,17 @@ namespace Shared
     {
         public static byte[] Serialize<T>(T packet) where T : PVCPacket
         {
-            //TODO:
-            //serialize as object
-            return Encoding.UTF8.GetBytes(JsonSerializer.Serialize<T>(packet)); // <object>
+            return Encoding.Unicode.GetBytes(JsonSerializer.Serialize<T>(packet));
         }
 
         public static T? Deserialize<T>(byte[] data) where T : PVCPacket
         {
-            return (T?)Deserialize(Encoding.UTF8.GetString(data));
+            return (T?)Deserialize(Encoding.Unicode.GetString(data));
         }
 
         public static T? Deserialize<T>(IntPtr datStart, int length) where T : PVCPacket
         {
-            return (T?)Deserialize(Marshal.PtrToStringAnsi(datStart, length));
+            return (T?)Deserialize(Marshal.PtrToStringUni(datStart, length));
         }
 
         private static PVCPacket? Deserialize(string s)
@@ -45,6 +43,8 @@ namespace Shared
                             return jDoc.RootElement.Deserialize<PVCClientHandshakePacket>();
                         case (int)PVCPacket.PacketType.Lobby:
                             return jDoc.RootElement.Deserialize<PVCLobbyPacket>();
+                        case (int)PVCPacket.PacketType.AppID:
+                            return jDoc.RootElement.Deserialize<PVCAppIdPacket>();
                         case (int)PVCPacket.PacketType.Error:
                             return jDoc.RootElement.Deserialize<PVCErrorPacket>();
                         default:

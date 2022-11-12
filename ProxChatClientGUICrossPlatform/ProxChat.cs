@@ -103,7 +103,7 @@ namespace ProxChatClientGUICrossPlatform
         }
 #endregion
 
-        public static ProxChat Instance = null!;
+        //public static ProxChat Instance = null!;
 
         [UI] private readonly Image settingsGearImage = ResizeImage(IOPath.Join(".", "Images", "Gear.png"), 75, 75);
         [UI] private readonly Image connectImage = ResizeImage(IOPath.Join(".", "Images", "connect.png"), 75, 75);
@@ -120,7 +120,7 @@ namespace ProxChatClientGUICrossPlatform
         [UI] private ListBox userListBox;
 
         private object uiLock = new object();
-        private Model model = null!;
+        private Services model = null!;
         private Dictionary<long, bool> isDirectHeldDown = new Dictionary<long, bool>();
         private bool isTeamHeldDown = false;
         private bool isGlobalHeldDown = false;
@@ -155,7 +155,7 @@ namespace ProxChatClientGUICrossPlatform
             connectionStatusRTB = (TextView)builder.GetObject("connectionStatusRTB");
             identityLabelRTB = (TextView)builder.GetObject("identityLabelRTB");
             userListBox = (ListBox)builder.GetObject("userListBox");
-            
+
             connectionStatusRTB.Buffer = new TextBuffer(new TextTagTable());
             connectionStatusRTB.Show();
             identityLabelRTB.Buffer = new TextBuffer(new TextTagTable());
@@ -205,37 +205,37 @@ namespace ProxChatClientGUICrossPlatform
 #pragma warning restore CS0612
             userListBox.SelectionMode = SelectionMode.None;
             //userListBox.focus
-#endregion
+            #endregion
 
             SetConnectionStatus(false);
             SetCDCButton(true);
             SetIdentity("", "");
-            Instance = this;
+            //Instance = this;
 
             #region Critical Settings
-            if (Settings.Instance.DiscordAppID == null)
-            {
-                ResponseType? res = null;
-                while (res != ResponseType.Ok)
-                {
-                    TextPopup popup = new TextPopup()
-                    {
-                        InfoText = $"Enter the discord Application ID{(res == null ? "" : " (This is required)")}:",
-                        LabelText = "Enter the discord App ID"
-                    };
-                    res = popup.ShowDialog(this);
-                    if (res == ResponseType.Ok && long.TryParse(popup.InfoResult, out long did))
-                    {
-                        Settings.Instance.DiscordAppID = did;
-                        Settings.SaveSettings();
-                    }
-                    else if (res == ResponseType.Reject)
-                    {
-                        Drawn += (_, _) => { Application.Quit(); };
-                        return;
-                    }
-                }
-            }
+            //if (Settings.Instance.DiscordAppID == null)
+            //{
+            //    ResponseType? res = null;
+            //    while (res != ResponseType.Ok)
+            //    {
+            //        TextPopup popup = new TextPopup()
+            //        {
+            //            InfoText = $"Enter the discord Application ID{(res == null ? "" : " (This is required)")}:",
+            //            LabelText = "Enter the discord App ID"
+            //        };
+            //        res = popup.ShowDialog(this);
+            //        if (res == ResponseType.Ok && long.TryParse(popup.InfoResult, out long did))
+            //        {
+            //            Settings.Instance.DiscordAppID = did;
+            //            Settings.SaveSettings();
+            //        }
+            //        else if (res == ResponseType.Reject)
+            //        {
+            //            Drawn += (_, _) => { Application.Quit(); };
+            //            return;
+            //        }
+            //    }
+            //}
             if (Settings.Instance.ServerHost == null)
             {
                 ResponseType? res = null;
@@ -381,7 +381,7 @@ namespace ProxChatClientGUICrossPlatform
             };
             #endregion
 
-            model = new Model(Settings.Instance.IngameName!);
+            model = new Services(this, Settings.Instance.IngameName!);
             Task.Run(() =>
             {
                 try
@@ -394,17 +394,11 @@ namespace ProxChatClientGUICrossPlatform
                         {
                             if (isGlobalHeldDown)
                             {
-                                model.AddMessage(() =>
-                                {
-                                    model.SendWalkieTalkiePacket(null, false);
-                                });
+                                model.SendWalkieTalkiePacket(, null, false);
                             }
                             else if (isTeamHeldDown)
                             {
-                                model.AddMessage(() =>
-                                {
-                                    model.SendWalkieTalkiePacket(null, true);
-                                });
+                                model.SendWalkieTalkiePacket(, null, true);
                             }
                             else
                             {
@@ -412,10 +406,7 @@ namespace ProxChatClientGUICrossPlatform
                                 {
                                     if (user.Value)
                                     {
-                                        model.AddMessage(() =>
-                                        {
-                                            model.SendWalkieTalkiePacket(user.Key, true);
-                                        });
+                                        model.SendWalkieTalkiePacket(, user.Key, true);
                                         break; //should only be one true in the collection
                                     }
                                 }
@@ -707,18 +698,12 @@ namespace ProxChatClientGUICrossPlatform
 
         private void OnDeafChange(bool deaf)
         {
-            model.AddMessage(() =>
-            {
-                model.SetDeaf(deaf);
-            });
+            model.SetDeaf(deaf);
         }
 
         private void OnMuteChange(long userId, bool muted)
         {
-            model.AddMessage(() =>
-            {
-                model.SetMute(userId, muted);
-            });
+            model.SetMute(userId, muted);
         }
 
         private void OnChangeVolume(string username, byte newVolume)
@@ -801,25 +786,50 @@ namespace ProxChatClientGUICrossPlatform
         {
             SetCDCButtonEnabled(false);
             SettingsUI sett = new SettingsUI();
-            sett.serverWasRunningUponOpening = model.IsConnectedToServer();
+            //TODO: FIX ME
+            //sett.serverWasRunningUponOpening = model.IsConnectedToServer();
             sett.Show(this);
         }
 
         private void connectDisconnectButton_Click(object sender, EventArgs e)
         {
             SetCDCButtonEnabled(false); //disable connect button so no tomfoolery occurs during connect/disconnect
-            model.AddMessage(() =>
+            model.GetServerConnectedState((isConnected) =>
             {
-                model.ConnectToServer(Settings.Instance.ServerHost!, Settings.Instance.ServerPort.ToString()!);
+                if (isConnected)
+                {
+                    model.DisconnectFromServer();
+                    SetCDCButtonEnabled(true);
+                    SetCDCButton(false);
+                }
+                else
+                {
+                    model.ConnectToServer(Settings.Instance.ServerHost!, Settings.Instance.ServerPort.ToString()!, (connectSuccess) =>
+                    {
+                        if (connectSuccess)
+                            Invoke(() =>
+                            {
+                                SetCDCButtonEnabled(true);
+                                SetCDCButton(true);
+                            });
+                        else
+                            Invoke(() =>
+                            {
+                                SetCDCButtonEnabled(true);
+                                SetCDCButton(false);
+                            });
+                    });
+                }
             });
         }
         #endregion
 
         #region ModelIO
-        public void AddMessage(SAction action)
-        {
-            messageQueue.Enqueue(action);
-        }
+        //TODO FIX ME
+        //public void AddMessage(SAction action)
+        //{
+        //    messageQueue.Enqueue(action);
+        //}
 
         private void Invoke(SAction action)
         {
@@ -843,13 +853,13 @@ namespace ProxChatClientGUICrossPlatform
             return img;
         }
 
-        public static void ResizeImage(ref Image image, int width, int height)
-        {
-            Gdk.Pixbuf pixbuf = image.Pixbuf.Copy();
-            pixbuf = pixbuf.ScaleSimple(width, height, Gdk.InterpType.Bilinear);
-            image = new Image(pixbuf);
-            image.ShowAll();
-        }
+        //public static void ResizeImage(ref Image image, int width, int height)
+        //{
+        //    Gdk.Pixbuf pixbuf = image.Pixbuf.Copy();
+        //    pixbuf = pixbuf.ScaleSimple(width, height, Gdk.InterpType.Bilinear);
+        //    image = new Image(pixbuf);
+        //    image.ShowAll();
+        //}
         #endregion
     }
 }

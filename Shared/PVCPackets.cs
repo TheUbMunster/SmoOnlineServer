@@ -15,6 +15,7 @@ namespace Shared
             WalkieTalkie,
             ClientHandshake,
             Lobby,
+            AppID,
             Error
         }
 
@@ -90,6 +91,16 @@ namespace Shared
         public PVCLobbyPacket()
         {
             PType = PacketType.Lobby;
+        }
+    }
+
+    public class PVCAppIdPacket : PVCPacket
+    {
+        public ulong AppID { get; set; }
+
+        public PVCAppIdPacket()
+        {
+            PType = PacketType.AppID;
         }
     }
 

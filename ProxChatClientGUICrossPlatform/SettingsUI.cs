@@ -108,7 +108,7 @@ namespace ProxChatClientGUICrossPlatform
             #endregion
 
             //fill fields with values
-            appIdTextBox.Text = Settings.Instance.DiscordAppID.ToString();
+            appIdTextBox.Text = "depricated"; //Settings.Instance.DiscordAppID.ToString();
             igUsernameTextBox.Text = Settings.Instance.IngameName!;
             serverPortTextBox.Text = Settings.Instance.ServerPort!.ToString();
             serverHostTextBox.Text = Settings.Instance.ServerHost!;
