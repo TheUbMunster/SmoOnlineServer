@@ -723,7 +723,7 @@ namespace Server
 
         private void SendPacket<T>(T packet, Peer recipient) where T : PVCPacket
         {
-            Console.WriteLine("Sent info");
+            //Console.WriteLine("Sent info");
             byte[] data = Protocol.Serialize(packet);
             Packet pack = default(Packet); //ENet will dispose automatically when sending.
             pack.Create(data, PacketFlags.Reliable);
