@@ -1,8 +1,6 @@
 ﻿using System.Buffers;
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.Net.Sockets;
-using System.Runtime.InteropServices;
 using Shared;
 using Shared.Packet;
 using Shared.Packet.Packets;
@@ -28,6 +26,17 @@ public class Client : IDisposable {
         Logger = new Logger("Unknown User");
     }
 
+    // copy Client to use existing data for a new reconnected connection with a new socket
+    public Client(Client other, Socket socket) {
+        Metadata       = other.Metadata;
+        Connected      = other.Connected;
+        CurrentCostume = other.CurrentCostume;
+        Id             = other.Id;
+        Socket         = socket;
+        Server         = other.Server;
+        Logger         = other.Logger;
+    }
+
     public void Dispose() {
         if (Socket?.Connected is true)
             Socket.Disconnect(false);
@@ -49,6 +58,17 @@ public class Client : IDisposable {
             Logger.Error($"Failed to serialize {packetAttribute.Type}");
             Logger.Error(e);
         }
+
+#if DEBUG
+        Guid senderId = sender?.Id ?? Id;
+        string senderName = "?";
+        Client? client = Server.FindExistingClient(senderId);
+        if (client is not null) { 
+            senderName = client.Name;
+        }
+
+        PacketUtils.LogPacket(packet, $"{senderName} -> (server)");
+#endif
 
         await Socket!.SendAsync(memory.Memory[..(Constants.HeaderSize + packet.Size)], SocketFlags.None);
         memory.Dispose();

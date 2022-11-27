@@ -1,7 +1,6 @@
 ﻿using System.Buffers;
 using System.Net;
 using System.Net.Sockets;
-using System.Runtime.InteropServices;
 using Shared;
 using Shared.Packet;
 using Shared.Packet.Packets;
@@ -84,10 +83,23 @@ public class Server {
             PacketSize = packet.Size
         };
         FillPacket(header, packet, memory.Memory);
+
+#if DEBUG
+        Guid senderId = sender?.Id ?? Guid.Empty;
+        string senderName = "?";
+        Client? client = FindExistingClient(senderId);
+        if (client != null)
+            senderName = client.Name;
+        PacketUtils.LogPacket(packet, $"{senderName} -> (all)");
+#endif
         await Broadcast(memory, sender);
     }
 
     public Task Broadcast<T>(T packet) where T : struct, IPacket {
+#if DEBUG
+        PacketUtils.LogPacket(packet, "BRDC");
+#endif
+
         return Task.WhenAll(Clients.Where(c => c.Connected).Select(async client => {
             IMemoryOwner<byte> memory = MemoryPool<byte>.Shared.RentZero(Constants.HeaderSize + packet.Size);
             PacketHeader header = new PacketHeader {
@@ -127,6 +139,7 @@ public class Server {
 
     private async void HandleSocket(Socket socket) {
         Client client = new Client(socket) {Server = this};
+        var remote = socket.RemoteEndPoint;
         IMemoryOwner<byte> memory = null!;
         await client.Send(new InitPacket {
             MaxPlayers = Settings.Instance.Server.MaxPlayers
@@ -142,7 +155,7 @@ public class Server {
                         int size = await socket.ReceiveAsync(readMem[readOffset..readSize], SocketFlags.None);
                         if (size == 0) {
                             // treat it as a disconnect and exit
-                            Logger.Info($"Socket {socket.RemoteEndPoint} disconnected.");
+                            Logger.Info($"Socket {remote} disconnected.");
                             if (socket.Connected) await socket.DisconnectAsync(false);
                             return false;
                         }
@@ -180,32 +193,21 @@ public class Server {
                             goto disconnect;
                         }
 
-                        bool firstConn = false;
+                        bool firstConn = true;
                         switch (connect.ConnectionType) {
-                            case ConnectPacket.ConnectionTypes.FirstConnection: {
-                                firstConn = true;
-                                if (FindExistingClient(header.Id) is { } newClient) {
-                                    if (newClient.Connected) {
-                                        newClient.Logger.Info($"Disconnecting already connected client {newClient.Socket?.RemoteEndPoint} for {client.Socket?.RemoteEndPoint}");
-                                        newClient.Dispose();
-                                    }
-                                    newClient.Socket = client.Socket;
-                                    client = newClient;
-                                }
-
-                                break;
-                            }
+                            case ConnectPacket.ConnectionTypes.FirstConnection:
                             case ConnectPacket.ConnectionTypes.Reconnecting: {
                                 client.Id = header.Id;
-                                if (FindExistingClient(header.Id) is { } newClient) {
-                                    if (newClient.Connected) {
-                                        newClient.Logger.Info($"Disconnecting already connected client {newClient.Socket?.RemoteEndPoint} for {client.Socket?.RemoteEndPoint}");
-                                        newClient.Dispose();
+                                if (FindExistingClient(header.Id) is { } oldClient) {
+                                    firstConn = false;
+                                    client = new Client(oldClient, socket);
+                                    Clients.Remove(oldClient);
+                                    Clients.Add(client);
+                                    if (oldClient.Connected) {
+                                        oldClient.Logger.Info($"Disconnecting already connected client {oldClient.Socket?.RemoteEndPoint} for {client.Socket?.RemoteEndPoint}");
+                                        oldClient.Dispose();
                                     }
-                                    newClient.Socket = client.Socket;
-                                    client = newClient;
                                 } else {
-                                    firstConn = true;
                                     connect.ConnectionType = ConnectPacket.ConnectionTypes.FirstConnection;
                                 }
 
@@ -222,7 +224,6 @@ public class Server {
                             List<Client> toDisconnect = Clients.FindAll(c => c.Id == header.Id && c.Connected && c.Socket != null);
                             Clients.RemoveAll(c => c.Id == header.Id);
 
-                            client.Id = header.Id;
                             Clients.Add(client);
 
                             Parallel.ForEachAsync(toDisconnect, (c, token) => c.Socket!.DisconnectAsync(false, token));
@@ -247,34 +248,44 @@ public class Server {
                             ClientName = other.Name
                         };
                         connectPacket.Serialize(tempBuffer.Memory.Span[Constants.HeaderSize..]);
+#if DEBUG
+                        PacketUtils.LogPacket(connectPacket, $"{client.Name} -> {other.Name}");
+#endif
                         await client.Send(tempBuffer.Memory[..(Constants.HeaderSize + connect.Size)], null);
                         if (other.CurrentCostume.HasValue) {
                             connectHeader.Type = PacketType.Costume;
                             connectHeader.PacketSize = other.CurrentCostume.Value.Size;
                             connectHeader.Serialize(tempBuffer.Memory.Span[..Constants.HeaderSize]);
                             other.CurrentCostume.Value.Serialize(tempBuffer.Memory.Span[Constants.HeaderSize..(Constants.HeaderSize + connectHeader.PacketSize)]);
+#if DEBUG
+                            PacketUtils.LogPacket((CostumePacket)other.CurrentCostume, $"{client.Name} -> {other.Name}");
+#endif
                             await client.Send(tempBuffer.Memory[..(Constants.HeaderSize + connectHeader.PacketSize)], null);
                         }
 
                         tempBuffer.Dispose();
                     });
 
-                    Logger.Info($"Client {client.Name} ({client.Id}/{socket.RemoteEndPoint}) connected.");
+                    Logger.Info($"Client {client.Name} ({client.Id}/{remote}) connected.");
                 } else if (header.Id != client.Id && client.Id != Guid.Empty) {
                     throw new Exception($"Client {client.Name} sent packet with invalid client id {header.Id} instead of {client.Id}");
                 }
-
-                if (header.Type == PacketType.Costume) {
+                /*if (header.Type == PacketType.Costume) {
                     CostumePacket costumePacket = new CostumePacket {
                         BodyName = ""
                     };
                     costumePacket.Deserialize(memory.Memory.Span[Constants.HeaderSize..(Constants.HeaderSize + costumePacket.Size)]);
                     client.CurrentCostume = costumePacket;
-                }
-
-                try {
+                }*/
+                try
+                {
                     IPacket packet = (IPacket) Activator.CreateInstance(Constants.PacketIdMap[header.Type])!;
                     packet.Deserialize(memory.Memory.Span[Constants.HeaderSize..(Constants.HeaderSize + packet.Size)]);
+
+#if DEBUG
+                    PacketUtils.LogPacket(packet, $"{FindExistingClient(header.Id)!.Name} -> (server)");
+#endif
+
                     if (PacketHandler?.Invoke(client, packet) is false) {
                         memory.Dispose();
                         continue;
@@ -283,6 +294,11 @@ public class Server {
                 catch (Exception e) {
                     client.Logger.Error($"Packet handler warning: {e}");
                 }
+#if DEBUG
+                if (header.Type is not (PacketType.Player or PacketType.Cap)) {
+                    PacketUtils.LogPacketSame($"{client.Name} -> (all)");
+                }
+#endif
 #pragma warning disable CS4014
                 Broadcast(memory, client)
                     .ContinueWith(x => { if (x.Exception != null) { Logger.Error(x.Exception.ToString()); } });
@@ -306,8 +322,14 @@ public class Server {
         }
 
         disconnect:
-        Logger.Info($"Client {socket.RemoteEndPoint} ({client.Name}/{client.Id}) disconnected from the server");
+        if (client.Name != "Unknown User" && client.Id != Guid.Parse("00000000-0000-0000-0000-000000000000")) {
+            Logger.Info($"Client {remote} ({client.Name}/{client.Id}) disconnected from the server");
+        }
+        else {
+            Logger.Info($"Client {remote} disconnected from the server");
+        }
 
+        bool wasConnected = client.Connected;
         // Clients.Remove(client)
         client.Connected = false;
         try {
@@ -316,8 +338,10 @@ public class Server {
         catch { /*lol*/ }
 
 #pragma warning disable CS4014
-        Task.Run(() => Broadcast(new DisconnectPacket(), client))
-            .ContinueWith(x => { if (x.Exception != null) { Logger.Error(x.Exception.ToString()); } });
+        if (wasConnected) {
+            Task.Run(() => Broadcast(new DisconnectPacket(), client))
+                .ContinueWith(x => { if (x.Exception != null) { Logger.Error(x.Exception.ToString()); } });
+        }
 #pragma warning restore CS4014
     }
 
