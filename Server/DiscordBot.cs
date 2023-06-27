@@ -278,7 +278,8 @@ public class DiscordBot {
         try {
             DiscordClient = new DiscordClient(new DiscordConfiguration {
                 Token = Config.Token,
-                MinimumLogLevel = LogLevel.None
+                MinimumLogLevel = LogLevel.None,
+                Intents = DiscordIntents.GuildMessages
             });
             Logger.Info("About to log in the bot...");
             await DiscordClient.ConnectAsync(new DiscordActivity("Hide and Seek", DSharpPlus.Entities.ActivityType.Competing));
